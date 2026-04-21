@@ -1,0 +1,8 @@
+-- This project now bootstraps household data automatically for the currently
+-- authenticated Supabase user by calling:
+--
+--   select bootstrap_default_household();
+--
+-- The app invokes that RPC on first sign-in when no profiles exist yet.
+--
+-- In most cases you do not need to run a separate seed script manually.
