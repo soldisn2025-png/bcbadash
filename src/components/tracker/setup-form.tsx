@@ -5,7 +5,10 @@ import { useState } from "react";
 import type { CandidateConfig } from "@/lib/domain/calculator";
 
 type SetupFormProps = {
+  /** When re-opening from the dashboard, pass the existing config to pre-fill the form. */
+  existing?: CandidateConfig;
   onComplete: (config: CandidateConfig) => void;
+  onCancel?: () => void;
 };
 
 type FormState = {
@@ -24,8 +27,18 @@ const DEFAULTS: FormState = {
   unrestrictedBanked: "512",
 };
 
-export function SetupForm({ onComplete }: SetupFormProps) {
-  const [form, setForm] = useState<FormState>(DEFAULTS);
+export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
+  const [form, setForm] = useState<FormState>(
+    existing
+      ? {
+          name: existing.name ?? "",
+          goalDate: existing.goalDate,
+          totalHoursTarget: String(existing.totalHoursTarget),
+          restrictedBanked: String(existing.restrictedBanked),
+          unrestrictedBanked: String(existing.unrestrictedBanked),
+        }
+      : DEFAULTS,
+  );
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
   function set(field: keyof FormState, value: string) {
@@ -79,11 +92,12 @@ export function SetupForm({ onComplete }: SetupFormProps) {
             BCBA Hours Tracker
           </p>
           <h1 className="font-serif text-4xl leading-tight text-[var(--foreground)]">
-            Enter your opening balance
+            {existing ? "Edit opening balance" : "Enter your opening balance"}
           </h1>
           <p className="text-sm leading-6 text-[var(--muted)]">
-            These numbers are saved locally and can be changed at any time in Settings.
-            Nothing is hardcoded — this is your data.
+            {existing
+              ? "Update any of the values below. Changes are saved immediately."
+              : "These numbers are saved and can be changed at any time. Nothing is hardcoded — this is your data."}
           </p>
         </div>
 
@@ -163,8 +177,17 @@ export function SetupForm({ onComplete }: SetupFormProps) {
             type="submit"
             className="w-full rounded-2xl bg-[#122922] px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#1a3d33] active:scale-[0.98]"
           >
-            Start tracking
+            {existing ? "Save changes" : "Start tracking"}
           </button>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="w-full rounded-2xl border border-[var(--border)] px-6 py-3 text-sm font-medium text-[var(--soft-ink)] transition hover:bg-[var(--border)]"
+            >
+              Cancel — go back to dashboard
+            </button>
+          )}
         </form>
       </div>
     </div>

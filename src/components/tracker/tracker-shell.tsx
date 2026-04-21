@@ -68,7 +68,13 @@ export function TrackerShell() {
   }
 
   if (phase === "setup") {
-    return <SetupForm onComplete={handleSetupComplete} />;
+    return (
+      <SetupForm
+        existing={data?.config}
+        onComplete={handleSetupComplete}
+        onCancel={data ? () => setPhase("dashboard") : undefined}
+      />
+    );
   }
 
   if (!data) return null;
@@ -126,9 +132,10 @@ function Dashboard({ data, onOpenSettings, onDataChange: _onDataChange }: Dashbo
             <button
               type="button"
               onClick={onOpenSettings}
+              title="Edit your opening balance, goal date, or total target"
               className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-medium text-[var(--soft-ink)] transition hover:bg-[var(--border)]"
             >
-              Settings
+              Edit opening balance
             </button>
           </div>
         </header>
@@ -141,11 +148,23 @@ function Dashboard({ data, onOpenSettings, onDataChange: _onDataChange }: Dashbo
         {/* Progress bar */}
         <ProgressSection snapshot={snapshot} />
 
-        {/* Placeholders for upcoming steps */}
-        <PlaceholderCard label="Weekly Log Entry" step="Step 4" />
-        <PlaceholderCard label="Projection Chart" step="Step 3" />
-        <PlaceholderCard label="History Table" step="Step 5" />
-        <PlaceholderCard label="What If Lever" step="Step 6" />
+        {/* Coming soon */}
+        <PlaceholderCard
+          label="Log this week"
+          description="Record your unrestricted hours for the week. Takes under 60 seconds."
+        />
+        <PlaceholderCard
+          label="Projection chart"
+          description="See your actual pace vs. the target line, and where you land if nothing changes."
+        />
+        <PlaceholderCard
+          label="History"
+          description="Every week you've logged, with red rows for deficit weeks."
+        />
+        <PlaceholderCard
+          label="What if?"
+          description="Drag a slider to see how a stronger or lighter week shifts your finish date."
+        />
       </div>
     </div>
   );
@@ -186,13 +205,11 @@ function ProgressSection({
   );
 }
 
-function PlaceholderCard({ label, step }: { label: string; step: string }) {
+function PlaceholderCard({ label, description }: { label: string; description: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)]/40 px-5 py-8 text-center space-y-1">
-      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--border)]">
-        {step}
-      </p>
-      <p className="text-sm text-[var(--muted)]">{label}</p>
+    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)]/40 px-5 py-6 space-y-1">
+      <p className="text-sm font-semibold text-[var(--muted)]">{label}</p>
+      <p className="text-xs text-[var(--muted)]/70 leading-5">{description}</p>
     </div>
   );
 }
