@@ -55,8 +55,7 @@ export function WeekLogForm({
       return;
     }
     if (parsedHours > 40) {
-      setError("That's over 40 hours — double-check the number before saving.");
-      return;
+      // Warn but don't block — unrestricted work can span multiple settings in one week
     }
     if (alreadyLogged) {
       setError("You already have a log for this week. Choose a different week.");
