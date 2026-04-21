@@ -52,9 +52,10 @@ export function TrackerShell() {
   }, []);
 
   function handleSetupComplete(config: CandidateConfig) {
-    const fresh: TrackerData = { config, weeklyLogs: [] };
-    void saveTrackerData(fresh);
-    setData(fresh);
+    // Preserve existing weekly logs — editing the opening balance must never wipe log history
+    const next: TrackerData = { config, weeklyLogs: data?.weeklyLogs ?? [] };
+    void saveTrackerData(next);
+    setData(next);
     setPhase("dashboard");
   }
 
