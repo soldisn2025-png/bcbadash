@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  LineChart,
+  ComposedChart,
+  Bar,
   Line,
   XAxis,
   YAxis,
@@ -236,7 +237,7 @@ export function ProjectionChart({ config, weeklyLogs, snapshot }: ProjectionChar
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <XAxis
               dataKey="label"
               tick={{ fontSize: 11, fill: "var(--muted)" }}
@@ -284,15 +285,15 @@ export function ProjectionChart({ config, weeklyLogs, snapshot }: ProjectionChar
               activeDot={false}
             />
 
-            {/* Actual */}
-            <Line
+            {/* Actual — bars make each logged week visually distinct */}
+            <Bar
               name="Actual"
               dataKey="actual"
-              stroke="#2d7a5a"
-              strokeWidth={2.5}
-              dot={{ r: 3, fill: "#2d7a5a", strokeWidth: 0 }}
-              connectNulls={false}
-              activeDot={{ r: 5 }}
+              fill="#2d7a5a"
+              fillOpacity={0.85}
+              radius={[3, 3, 0, 0]}
+              barSize={10}
+              isAnimationActive={false}
             />
 
             {/* Projected */}
@@ -306,14 +307,14 @@ export function ProjectionChart({ config, weeklyLogs, snapshot }: ProjectionChar
               activeDot={{ r: 4 }}
               connectNulls={false}
             />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       )}
 
       {/* Legend gloss */}
       <div className="flex flex-wrap gap-4 text-xs text-[var(--muted)]">
         <LegendItem color="#9ca3af" dash label="Target — pace needed to hit Dec 31" />
-        <LegendItem color="#2d7a5a" label="Actual — what you've logged" />
+        <LegendItem color="#2d7a5a" bar label="Actual — cumulative hours logged" />
         <LegendItem
           color={daysOffset !== null && daysOffset > 14 ? "#dc2626" : "#d97706"}
           dash
@@ -361,22 +362,31 @@ function ChartTooltip({
 function LegendItem({
   color,
   dash = false,
+  bar = false,
   label,
 }: {
   color: string;
   dash?: boolean;
+  bar?: boolean;
   label: string;
 }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span
-        className="inline-block h-px w-5 rounded"
-        style={{
-          backgroundColor: color,
-          borderBottom: dash ? `2px dashed ${color}` : undefined,
-          height: dash ? 0 : 2,
-        }}
-      />
+      {bar ? (
+        <span
+          className="inline-block w-2.5 rounded-sm"
+          style={{ backgroundColor: color, height: 12, opacity: 0.85 }}
+        />
+      ) : (
+        <span
+          className="inline-block w-5 rounded"
+          style={{
+            backgroundColor: dash ? "transparent" : color,
+            borderBottom: dash ? `2px dashed ${color}` : undefined,
+            height: dash ? 0 : 2,
+          }}
+        />
+      )}
       {label}
     </span>
   );
