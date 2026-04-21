@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ThreeNumbers } from "@/components/tracker/three-numbers";
 import { SetupForm } from "@/components/tracker/setup-form";
+import { WeekLogForm } from "@/components/tracker/week-log-form";
 import { buildSnapshot, type CandidateConfig, type WeeklyLog } from "@/lib/domain/calculator";
 import {
   loadTrackerData,
@@ -98,12 +99,30 @@ type DashboardProps = {
   onDataChange: (next: TrackerData) => void;
 };
 
-function Dashboard({ data, onOpenSettings, onDataChange: _onDataChange }: DashboardProps) {
+function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
+  const [showLogForm, setShowLogForm] = useState(false);
   const snapshot = buildSnapshot(data.config, data.weeklyLogs);
   const name = data.config.name ?? "You";
 
+  function handleLogSubmit(log: WeeklyLog) {
+    const next: TrackerData = {
+      ...data,
+      weeklyLogs: [...data.weeklyLogs, log],
+    };
+    onDataChange(next);
+    setShowLogForm(false);
+  }
+
   return (
     <div className="min-h-screen text-[var(--foreground)]">
+      {showLogForm && (
+        <WeekLogForm
+          requiredPace={snapshot.requiredWeeklyPace}
+          existingLogs={data.weeklyLogs}
+          onSubmit={handleLogSubmit}
+          onClose={() => setShowLogForm(false)}
+        />
+      )}
       <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
 
         {/* Header */}
@@ -148,11 +167,17 @@ function Dashboard({ data, onOpenSettings, onDataChange: _onDataChange }: Dashbo
         {/* Progress bar */}
         <ProgressSection snapshot={snapshot} />
 
-        {/* Coming soon */}
-        <PlaceholderCard
-          label="Log this week"
-          description="Record your unrestricted hours for the week. Takes under 60 seconds."
-        />
+        {/* Primary action — always accessible */}
+        <button
+          type="button"
+          onClick={() => setShowLogForm(true)}
+          className="w-full rounded-2xl border-2 border-[#122922] bg-[#122922] px-6 py-5 text-left text-white transition hover:bg-[#1a3d33] active:scale-[0.99]"
+        >
+          <p className="text-lg font-semibold">Log this week →</p>
+          <p className="mt-0.5 text-sm text-white/70">
+            Record your unrestricted hours. Takes under 60 seconds.
+          </p>
+        </button>
         <PlaceholderCard
           label="Projection chart"
           description="See your actual pace vs. the target line, and where you land if nothing changes."
