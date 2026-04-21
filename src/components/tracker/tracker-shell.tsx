@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ThreeNumbers } from "@/components/tracker/three-numbers";
 import { SetupForm } from "@/components/tracker/setup-form";
 import { WeekLogForm } from "@/components/tracker/week-log-form";
+import { ProjectionChart } from "@/components/tracker/projection-chart";
 import { buildSnapshot, type CandidateConfig, type WeeklyLog } from "@/lib/domain/calculator";
 import {
   loadTrackerData,
@@ -178,9 +179,10 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
             Record your unrestricted hours. Takes under 60 seconds.
           </p>
         </button>
-        <PlaceholderCard
-          label="Projection chart"
-          description="See your actual pace vs. the target line, and where you land if nothing changes."
+        <ProjectionChart
+          config={data.config}
+          weeklyLogs={data.weeklyLogs}
+          snapshot={snapshot}
         />
         <PlaceholderCard
           label="History"
