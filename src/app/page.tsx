@@ -1,6 +1,5 @@
-import { DashboardShell } from "@/components/dashboard-shell";
-import { sampleAppState } from "@/lib/data/sample-data";
+import { TrackerShell } from "@/components/tracker/tracker-shell";
 
 export default function Page() {
-  return <DashboardShell initialState={sampleAppState} />;
+  return <TrackerShell />;
 }

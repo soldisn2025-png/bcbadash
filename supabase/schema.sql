@@ -167,6 +167,25 @@ alter table opening_balances enable row level security;
 alter table monthly_logs enable row level security;
 alter table app_settings enable row level security;
 
+-- ---------------------------------------------------------------------------
+-- Weekly tracker — single-household personal tool, no auth required.
+-- Data is stored as a single JSON row. RLS is intentionally disabled:
+-- access control is the deployment URL itself, not database permissions.
+-- ---------------------------------------------------------------------------
+
+create table if not exists weekly_tracker (
+  id text primary key,
+  config jsonb not null,
+  weekly_logs jsonb not null default '[]',
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+drop trigger if exists weekly_tracker_set_updated_at on weekly_tracker;
+create trigger weekly_tracker_set_updated_at
+before update on weekly_tracker
+for each row
+execute function set_updated_at();
+
 drop policy if exists profiles_select_own on profiles;
 create policy profiles_select_own on profiles
 for select using (owner_user_id = auth.uid());
