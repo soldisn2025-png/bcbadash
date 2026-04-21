@@ -31,6 +31,11 @@ export type CandidateConfig = {
   restrictedBanked: number;
   /** Unrestricted hours as of the opening-balance date, before any weekly logs. */
   unrestrictedBanked: number;
+  /**
+   * The date the opening balance was recorded (YYYY-MM-DD).
+   * Used as the chart's starting anchor. Defaults to today if omitted.
+   */
+  asOfDate?: string;
 };
 
 export type TrackingStatus = "ON TRACK" | "AHEAD" | "BEHIND";

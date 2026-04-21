@@ -17,7 +17,12 @@ type FormState = {
   totalHoursTarget: string;
   restrictedBanked: string;
   unrestrictedBanked: string;
+  asOfDate: string;
 };
+
+function todayIso(): string {
+  return new Date().toISOString().split("T")[0];
+}
 
 const DEFAULTS: FormState = {
   name: "",
@@ -25,6 +30,7 @@ const DEFAULTS: FormState = {
   totalHoursTarget: "2000",
   restrictedBanked: "800",
   unrestrictedBanked: "512",
+  asOfDate: todayIso(),
 };
 
 export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
@@ -36,6 +42,7 @@ export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
           totalHoursTarget: String(existing.totalHoursTarget),
           restrictedBanked: String(existing.restrictedBanked),
           unrestrictedBanked: String(existing.unrestrictedBanked),
+          asOfDate: existing.asOfDate ?? todayIso(),
         }
       : DEFAULTS,
   );
@@ -74,6 +81,7 @@ export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
       totalHoursTarget,
       restrictedBanked,
       unrestrictedBanked,
+      asOfDate: form.asOfDate || todayIso(),
     };
   }
 
@@ -142,6 +150,14 @@ export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">
               Opening balance — hours already banked
             </p>
+            <Field label="Balance as of">
+              <input
+                type="date"
+                value={form.asOfDate}
+                onChange={(e) => set("asOfDate", e.target.value)}
+                className={inputClass()}
+              />
+            </Field>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Restricted hours" error={errors.restrictedBanked}>
                 <input

@@ -14,7 +14,6 @@ import {
 
 import {
   calcFourWeekRollingAverage,
-  calcRequiredWeeklyPace,
   calcHoursRemaining,
   calcTotalHoursBanked,
   type CandidateConfig,
@@ -110,11 +109,8 @@ function buildChartData(
   const rollingAvg = calcFourWeekRollingAverage(weeklyLogs);
   const totalBanked = calcTotalHoursBanked(config, weeklyLogs);
   const remaining = calcHoursRemaining(config.totalHoursTarget, totalBanked);
-  const daysLeft = Math.max(0, daysBetween(today, parseDate(config.goalDate)));
-  const requiredPace = calcRequiredWeeklyPace(remaining, daysLeft / 7) ?? 0;
 
   // Unrestricted ceiling — the Y value we're trying to reach
-  // (everything above restrictedBanked counts toward 2000)
   const unrestrictedCeiling = config.totalHoursTarget - config.restrictedBanked;
 
   // Last logged week (for projection anchor)
@@ -130,16 +126,22 @@ function buildChartData(
   const projectedFinish =
     rollingAvg > 0 ? addDays(today, weeksNeeded * 7) : goalDate;
 
-  // Chart range
-  const chartStart = getMondayOf(
-    sortedLogs.length > 0
-      ? addDays(parseDate(sortedLogs[0].weekOf), -14)
-      : addDays(today, -28),
-  );
+  // Opening balance anchor — use asOfDate if provided, else first log or today
+  const asOfDate = config.asOfDate
+    ? parseDate(config.asOfDate)
+    : sortedLogs.length > 0
+      ? parseDate(sortedLogs[0].weekOf)
+      : today;
+
+  // Chart range: start from asOfDate (or a bit before), end past goal/projection
+  const chartStart = getMondayOf(addDays(asOfDate, -7));
   const chartEnd = addDays(
     projectedFinish > goalDate ? projectedFinish : goalDate,
     14,
   );
+
+  // Target line: straight from (asOfDate, unrestrictedBanked) to (goalDate, unrestrictedCeiling)
+  const totalTargetDays = Math.max(1, daysBetween(asOfDate, goalDate));
 
   // Generate weekly data points
   const points: ChartPoint[] = [];
@@ -147,11 +149,13 @@ function buildChartData(
 
   while (cursor <= chartEnd) {
     const dateStr = formatDate(cursor);
-    const weeksBetweenTodayAndCursor = daysBetween(today, cursor) / 7;
+    const daysFromAsOf = daysBetween(asOfDate, cursor);
 
-    // Target: straight line through (today, currentCumulative) at requiredPace slope
-    const targetRaw = currentCumulative + requiredPace * weeksBetweenTodayAndCursor;
-    const target = Math.round(Math.min(Math.max(0, targetRaw), unrestrictedCeiling) * 10) / 10;
+    // Target: linear from opening balance on asOfDate to ceiling on goalDate
+    const targetRaw =
+      config.unrestrictedBanked +
+      ((unrestrictedCeiling - config.unrestrictedBanked) * daysFromAsOf) / totalTargetDays;
+    const target = Math.round(Math.min(Math.max(config.unrestrictedBanked, targetRaw), unrestrictedCeiling) * 10) / 10;
 
     // Actual: only for logged weeks
     const actual = cumulativeByWeek.has(dateStr)
