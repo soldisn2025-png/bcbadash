@@ -9,6 +9,8 @@ type MonthLogFormProps = {
   existingLogs: MonthlyLog[];
   onSubmit: (log: MonthlyLog) => void;
   onClose: () => void;
+  /** When provided the form is in edit mode — fields are pre-filled. */
+  initialLog?: MonthlyLog;
 };
 
 type ResultCard = {
@@ -37,14 +39,19 @@ export function WeekLogForm({
   existingLogs,
   onSubmit,
   onClose,
+  initialLog,
 }: MonthLogFormProps) {
-  const [monthOf, setMonthOf] = useState(getCurrentMonth());
-  const [hours, setHours] = useState("");
-  const [notes, setNotes] = useState("");
+  const isEditing = initialLog !== undefined;
+  const [monthOf, setMonthOf] = useState(initialLog?.monthOf ?? getCurrentMonth());
+  const [hours, setHours] = useState(initialLog ? String(initialLog.unrestrictedHours) : "");
+  const [notes, setNotes] = useState(initialLog?.notes ?? "");
   const [error, setError] = useState("");
   const [result, setResult] = useState<ResultCard | null>(null);
 
-  const alreadyLogged = existingLogs.some((l) => l.monthOf === monthOf);
+  // In edit mode, the current month is allowed (it's the one being edited)
+  const alreadyLogged = existingLogs.some(
+    (l) => l.monthOf === monthOf && l.monthOf !== initialLog?.monthOf,
+  );
   const parsedHours = parseFloat(hours);
 
   function handleSubmit(e: React.FormEvent) {
@@ -82,7 +89,9 @@ export function WeekLogForm({
       <div className="w-full max-w-md rounded-3xl border border-[var(--border)] bg-[var(--card)] shadow-2xl">
         <div className="px-6 pt-6 pb-2">
           <div className="flex items-center justify-between">
-            <h2 className="font-serif text-2xl text-[var(--foreground)]">Log this month</h2>
+            <h2 className="font-serif text-2xl text-[var(--foreground)]">
+              {isEditing ? `Edit ${formatMonthLabel(initialLog!.monthOf)}` : "Log this month"}
+            </h2>
             <button
               type="button"
               onClick={onClose}

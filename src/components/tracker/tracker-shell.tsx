@@ -103,6 +103,7 @@ type DashboardProps = {
 
 function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
   const [showLogForm, setShowLogForm] = useState(false);
+  const [editingLog, setEditingLog] = useState<MonthlyLog | null>(null);
   const snapshot = buildSnapshot(data.config, data.monthlyLogs);
   const name = data.config.name ?? "You";
 
@@ -115,6 +116,25 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
     setShowLogForm(false);
   }
 
+  function handleLogEdit(updated: MonthlyLog) {
+    const next: TrackerData = {
+      ...data,
+      monthlyLogs: data.monthlyLogs.map((l) =>
+        l.monthOf === editingLog?.monthOf ? updated : l,
+      ),
+    };
+    onDataChange(next);
+    setEditingLog(null);
+  }
+
+  function handleLogDelete(monthOf: string) {
+    const next: TrackerData = {
+      ...data,
+      monthlyLogs: data.monthlyLogs.filter((l) => l.monthOf !== monthOf),
+    };
+    onDataChange(next);
+  }
+
   return (
     <div className="min-h-screen text-[var(--foreground)]">
       {showLogForm && (
@@ -123,6 +143,15 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
           existingLogs={data.monthlyLogs}
           onSubmit={handleLogSubmit}
           onClose={() => setShowLogForm(false)}
+        />
+      )}
+      {editingLog && (
+        <WeekLogForm
+          requiredPace={snapshot.requiredMonthlyPace}
+          existingLogs={data.monthlyLogs}
+          onSubmit={handleLogEdit}
+          onClose={() => setEditingLog(null)}
+          initialLog={editingLog}
         />
       )}
       <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
@@ -185,9 +214,11 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
           monthlyLogs={data.monthlyLogs}
           snapshot={snapshot}
         />
-        <PlaceholderCard
-          label="History"
-          description="Every week you've logged, with red rows for deficit weeks."
+        <HistoryTable
+          logs={data.monthlyLogs}
+          requiredPace={snapshot.requiredMonthlyPace}
+          onEdit={setEditingLog}
+          onDelete={handleLogDelete}
         />
         <PlaceholderCard
           label="What if?"
@@ -229,6 +260,120 @@ function ProgressSection({
         <span>{snapshot.totalHoursBanked.toFixed(1)} hrs banked</span>
         <span>{snapshot.totalHoursTarget} hrs goal</span>
       </div>
+    </div>
+  );
+}
+
+function fmtMonth(yyyyMM: string): string {
+  const [y, m] = yyyyMM.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+type HistoryTableProps = {
+  logs: MonthlyLog[];
+  requiredPace: number;
+  onEdit: (log: MonthlyLog) => void;
+  onDelete: (monthOf: string) => void;
+};
+
+function HistoryTable({ logs, requiredPace, onEdit, onDelete }: HistoryTableProps) {
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const sorted = [...logs].sort((a, b) => b.monthOf.localeCompare(a.monthOf));
+
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+      <div className="px-5 py-4 border-b border-[var(--border)]">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--muted)]">
+          History
+        </p>
+        <p className="text-sm font-medium text-[var(--foreground)] mt-0.5">
+          Every month you&rsquo;ve logged
+        </p>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="px-5 py-8 text-center">
+          <p className="text-sm text-[var(--muted)]">No months logged yet.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-[var(--border)]">
+          {sorted.map((log) => {
+            const surplus = log.unrestrictedHours - requiredPace;
+            const isAhead = surplus >= 0;
+            const isConfirming = confirmDelete === log.monthOf;
+
+            return (
+              <div key={log.monthOf} className="flex items-center gap-3 px-5 py-3.5">
+                {/* Month */}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    {fmtMonth(log.monthOf)}
+                  </p>
+                  {log.notes && (
+                    <p className="text-xs text-[var(--muted)] truncate mt-0.5">{log.notes}</p>
+                  )}
+                </div>
+
+                {/* Hours */}
+                <p className="text-sm tabular-nums font-semibold text-[var(--foreground)] w-16 text-right shrink-0">
+                  {log.unrestrictedHours.toFixed(1)} hrs
+                </p>
+
+                {/* Surplus / deficit chip */}
+                <span
+                  className={`text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full shrink-0 ${
+                    isAhead
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {isAhead ? "+" : ""}{surplus.toFixed(1)}
+                </span>
+
+                {/* Actions */}
+                {isConfirming ? (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-xs text-[var(--muted)]">Remove?</span>
+                    <button
+                      type="button"
+                      onClick={() => { onDelete(log.monthOf); setConfirmDelete(null); }}
+                      className="text-xs font-semibold text-red-600 hover:text-red-700"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(null)}
+                      className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(log)}
+                      className="rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--soft-ink)] border border-[var(--border)] hover:bg-[var(--border)] transition"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(log.monthOf)}
+                      className="rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--muted)] hover:text-red-600 hover:border-red-200 border border-transparent transition"
+                      aria-label={`Remove ${fmtMonth(log.monthOf)}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
