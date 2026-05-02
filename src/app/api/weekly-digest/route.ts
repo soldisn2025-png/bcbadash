@@ -18,7 +18,7 @@ import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 
 import { buildSnapshot } from "@/lib/domain/calculator";
-import type { CandidateConfig, WeeklyLog } from "@/lib/domain/calculator";
+import type { CandidateConfig, MonthlyLog } from "@/lib/domain/calculator";
 
 // ---------------------------------------------------------------------------
 // Auth guard — Vercel attaches Authorization: Bearer <CRON_SECRET> on cron
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const snapshot = buildSnapshot(trackerData.config, trackerData.weeklyLogs);
+  const snapshot = buildSnapshot(trackerData.config, trackerData.monthlyLogs);
   const name = trackerData.config.name ?? "Sol";
   const subject = buildSubject(name, snapshot.status);
   const html = buildEmailHtml({ name, snapshot, appUrl });
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
 
 async function loadTrackerDataServer(): Promise<{
   config: CandidateConfig;
-  weeklyLogs: WeeklyLog[];
+  monthlyLogs: MonthlyLog[];
 } | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -107,7 +107,7 @@ async function loadTrackerDataServer(): Promise<{
 
   return {
     config: data.config as CandidateConfig,
-    weeklyLogs: data.weekly_logs as WeeklyLog[],
+    monthlyLogs: data.weekly_logs as MonthlyLog[],
   };
 }
 
@@ -132,14 +132,14 @@ function buildEmailHtml({
 }): string {
   const statusColor =
     snapshot.status === "BEHIND"
-      ? snapshot.weeklyDeficitSurplus / snapshot.requiredWeeklyPace < -0.2
+      ? snapshot.monthlyDeficitSurplus / snapshot.requiredMonthlyPace < -0.2
         ? "#dc2626"
         : "#d97706"
       : "#2d7a5a";
 
   const statusBg =
     snapshot.status === "BEHIND"
-      ? snapshot.weeklyDeficitSurplus / snapshot.requiredWeeklyPace < -0.2
+      ? snapshot.monthlyDeficitSurplus / snapshot.requiredMonthlyPace < -0.2
         ? "#fef2f2"
         : "#fffbeb"
       : "#f0fdf4";
@@ -178,18 +178,18 @@ function buildEmailHtml({
     <div style="padding:20px 28px 0;display:flex;gap:12px;">
       <div style="flex:1;background:#f5efe4;border-radius:10px;padding:14px 16px;">
         <p style="margin:0 0 4px;font-size:10px;color:#6d8278;text-transform:uppercase;letter-spacing:0.15em;">Required pace</p>
-        <p style="margin:0;font-size:22px;font-weight:700;color:#122922;">${snapshot.requiredWeeklyPace.toFixed(1)}</p>
-        <p style="margin:0;font-size:11px;color:#6d8278;">hrs / week</p>
+        <p style="margin:0;font-size:22px;font-weight:700;color:#122922;">${snapshot.requiredMonthlyPace.toFixed(1)}</p>
+        <p style="margin:0;font-size:11px;color:#6d8278;">hrs / month</p>
       </div>
       <div style="flex:1;background:#f5efe4;border-radius:10px;padding:14px 16px;">
         <p style="margin:0 0 4px;font-size:10px;color:#6d8278;text-transform:uppercase;letter-spacing:0.15em;">Actual pace</p>
-        <p style="margin:0;font-size:22px;font-weight:700;color:#122922;">${snapshot.fourWeekRollingAverage > 0 ? snapshot.fourWeekRollingAverage.toFixed(1) : "—"}</p>
-        <p style="margin:0;font-size:11px;color:#6d8278;">${snapshot.fourWeekRollingAverage > 0 ? "4-wk avg" : "no logs yet"}</p>
+        <p style="margin:0;font-size:22px;font-weight:700;color:#122922;">${snapshot.threeMonthAverage > 0 ? snapshot.threeMonthAverage.toFixed(1) : "—"}</p>
+        <p style="margin:0;font-size:11px;color:#6d8278;">${snapshot.threeMonthAverage > 0 ? "3-mo avg" : "no logs yet"}</p>
       </div>
       <div style="flex:1;background:${statusBg};border-radius:10px;padding:14px 16px;">
-        <p style="margin:0 0 4px;font-size:10px;color:#6d8278;text-transform:uppercase;letter-spacing:0.15em;">${snapshot.weeklyDeficitSurplus >= 0 ? "Surplus" : "Deficit"}</p>
-        <p style="margin:0;font-size:22px;font-weight:700;color:${statusColor};">${snapshot.fourWeekRollingAverage > 0 ? (snapshot.weeklyDeficitSurplus >= 0 ? "+" : "") + snapshot.weeklyDeficitSurplus.toFixed(1) : "—"}</p>
-        <p style="margin:0;font-size:11px;color:#6d8278;">hrs / week</p>
+        <p style="margin:0 0 4px;font-size:10px;color:#6d8278;text-transform:uppercase;letter-spacing:0.15em;">${snapshot.monthlyDeficitSurplus >= 0 ? "Surplus" : "Deficit"}</p>
+        <p style="margin:0;font-size:22px;font-weight:700;color:${statusColor};">${snapshot.threeMonthAverage > 0 ? (snapshot.monthlyDeficitSurplus >= 0 ? "+" : "") + snapshot.monthlyDeficitSurplus.toFixed(1) : "—"}</p>
+        <p style="margin:0;font-size:11px;color:#6d8278;">hrs / month</p>
       </div>
     </div>
 

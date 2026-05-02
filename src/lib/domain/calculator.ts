@@ -12,9 +12,9 @@
 // Types
 // ---------------------------------------------------------------------------
 
-export type WeeklyLog = {
-  /** ISO date string for the Monday that starts the logged week (YYYY-MM-DD). */
-  weekOf: string;
+export type MonthlyLog = {
+  /** YYYY-MM string for the logged month, e.g. "2026-04". */
+  monthOf: string;
   unrestrictedHours: number;
   notes?: string;
 };
@@ -29,7 +29,7 @@ export type CandidateConfig = {
   goalDate: string;
   totalHoursTarget: number;
   restrictedBanked: number;
-  /** Unrestricted hours as of the opening-balance date, before any weekly logs. */
+  /** Unrestricted hours as of the opening-balance date, before any monthly logs. */
   unrestrictedBanked: number;
   /**
    * The date the opening balance was recorded (YYYY-MM-DD).
@@ -54,10 +54,10 @@ export type CalculatorSnapshot = {
 
   // Pace
   hoursRemaining: number;
-  weeksRemaining: number;
-  requiredWeeklyPace: number;
-  fourWeekRollingAverage: number;
-  weeklyDeficitSurplus: number;
+  monthsRemaining: number;
+  requiredMonthlyPace: number;
+  threeMonthAverage: number;
+  monthlyDeficitSurplus: number;
 
   // Projection
   projectedCompletionDate: string | null;
@@ -71,6 +71,8 @@ export type CalculatorSnapshot = {
 // ---------------------------------------------------------------------------
 // Date helpers (no external deps — keeps the engine portable)
 // ---------------------------------------------------------------------------
+
+const DAYS_PER_MONTH = 30.44;
 
 function parseDate(iso: string): Date {
   const [year, month, day] = iso.split("-").map(Number);
@@ -107,15 +109,15 @@ function formatLongDate(iso: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Total hours banked = restrictedBanked + unrestrictedBanked + sum(weeklyLogs).
+ * Total hours banked = restrictedBanked + unrestrictedBanked + sum(monthlyLogs).
  *
  * Restricted hours are fully banked — the only ongoing tracking is unrestricted.
  */
 export function calcTotalHoursBanked(
   config: Pick<CandidateConfig, "restrictedBanked" | "unrestrictedBanked">,
-  weeklyLogs: WeeklyLog[],
+  monthlyLogs: MonthlyLog[],
 ): number {
-  const loggedSum = weeklyLogs.reduce((acc, log) => acc + log.unrestrictedHours, 0);
+  const loggedSum = monthlyLogs.reduce((acc, log) => acc + log.unrestrictedHours, 0);
   return config.restrictedBanked + config.unrestrictedBanked + loggedSum;
 }
 
@@ -131,44 +133,44 @@ export function calcHoursRemaining(
 }
 
 /**
- * Weeks remaining = (goalDate − today) / 7.
+ * Months remaining = (goalDate − today) / 30.44.
  * Floors at 0.
  */
-export function calcWeeksRemaining(goalDate: string, today: Date): number {
+export function calcMonthsRemaining(goalDate: string, today: Date): number {
   const goal = parseDate(goalDate);
   const days = daysBetween(today, goal);
-  return Math.max(0, days / 7);
+  return Math.max(0, days / DAYS_PER_MONTH);
 }
 
 /**
- * Required weekly pace = hoursRemaining / weeksRemaining.
- * Returns null when weeksRemaining ≤ 0 (goal date has passed).
+ * Required monthly pace = hoursRemaining / monthsRemaining.
+ * Returns null when monthsRemaining ≤ 0 (goal date has passed).
  */
-export function calcRequiredWeeklyPace(
+export function calcRequiredMonthlyPace(
   hoursRemaining: number,
-  weeksRemaining: number,
+  monthsRemaining: number,
 ): number | null {
-  if (weeksRemaining <= 0) return null;
-  return hoursRemaining / weeksRemaining;
+  if (monthsRemaining <= 0) return null;
+  return hoursRemaining / monthsRemaining;
 }
 
 /**
- * 4-week rolling average of the most recent 4 weekly log entries.
- * Returns 0 when fewer than 1 entry exists.
+ * 3-month rolling average of the most recent 3 monthly log entries.
+ * Returns 0 when no entries exist.
  */
-export function calcFourWeekRollingAverage(weeklyLogs: WeeklyLog[]): number {
-  if (weeklyLogs.length === 0) return 0;
-  const sorted = [...weeklyLogs].sort((a, b) => b.weekOf.localeCompare(a.weekOf));
-  const recent = sorted.slice(0, 4);
+export function calcThreeMonthAverage(monthlyLogs: MonthlyLog[]): number {
+  if (monthlyLogs.length === 0) return 0;
+  const sorted = [...monthlyLogs].sort((a, b) => b.monthOf.localeCompare(a.monthOf));
+  const recent = sorted.slice(0, 3);
   const total = recent.reduce((acc, log) => acc + log.unrestrictedHours, 0);
   return total / recent.length;
 }
 
 /**
- * Weekly surplus/deficit = actualLogged − requiredPace.
+ * Monthly surplus/deficit = actualLogged − requiredPace.
  * Positive = surplus (ahead), negative = deficit (behind).
  */
-export function calcWeeklyDeficitSurplus(
+export function calcMonthlyDeficitSurplus(
   actualHours: number,
   requiredPace: number,
 ): number {
@@ -176,18 +178,18 @@ export function calcWeeklyDeficitSurplus(
 }
 
 /**
- * Projected completion date = today + (hoursRemaining / rollingAverage) × 7.
- * Returns null when rollingAverage ≤ 0 (cannot project without pace data).
+ * Projected completion date = today + (hoursRemaining / monthlyAverage) × 30.44 days.
+ * Returns null when monthlyAverage ≤ 0 (cannot project without pace data).
  */
 export function calcProjectedCompletionDate(
   today: Date,
   hoursRemaining: number,
-  rollingAverage: number,
+  monthlyAverage: number,
 ): string | null {
-  if (rollingAverage <= 0) return null;
+  if (monthlyAverage <= 0) return null;
   if (hoursRemaining <= 0) return formatDate(today);
-  const weeksNeeded = hoursRemaining / rollingAverage;
-  const projected = addDays(today, weeksNeeded * 7);
+  const monthsNeeded = hoursRemaining / monthlyAverage;
+  const projected = addDays(today, monthsNeeded * DAYS_PER_MONTH);
   return formatDate(projected);
 }
 
@@ -224,8 +226,8 @@ export function calcStatus(
  * Compose the "flight path sentence" that is the motivational core of the app.
  *
  * Examples:
- *   "You are 6.4 hrs/week behind pace. At this rate, you finish February 14, 2027 — 45 days late."
- *   "You are 3.1 hrs/week ahead of pace. At this rate, you finish October 18, 2026 — 74 days early."
+ *   "You are 6.4 hrs/month behind pace. At this rate, you finish February 14, 2027 — 45 days late."
+ *   "You are 3.1 hrs/month ahead of pace. At this rate, you finish October 18, 2026 — 74 days early."
  *   "You are exactly on pace. Projected finish: December 31, 2026."
  */
 export function buildFlightPathSentence(
@@ -240,11 +242,11 @@ export function buildFlightPathSentence(
   }
 
   if (noLogsYet) {
-    return `No weeks logged yet. Log your first week to see a projection. Required pace: ${requiredPace.toFixed(1)} hrs/week.`;
+    return `No months logged yet. Log your first month to see a projection. Required pace: ${requiredPace.toFixed(1)} hrs/month.`;
   }
 
   if (projectedDate === null) {
-    return `Log at least one week to generate a projection. Required pace: ${requiredPace.toFixed(1)} hrs/week.`;
+    return `Log at least one month to generate a projection. Required pace: ${requiredPace.toFixed(1)} hrs/month.`;
   }
 
   const gap = rollingAverage - requiredPace;
@@ -253,11 +255,11 @@ export function buildFlightPathSentence(
   const absDays = daysLateOrEarly !== null ? Math.abs(daysLateOrEarly) : 0;
 
   if (daysLateOrEarly !== null && daysLateOrEarly > 0) {
-    return `You are ${absGap} hrs/week behind pace. At this rate, you finish ${formattedDate} — ${absDays} day${absDays === 1 ? "" : "s"} late.`;
+    return `You are ${absGap} hrs/month behind pace. At this rate, you finish ${formattedDate} — ${absDays} day${absDays === 1 ? "" : "s"} late.`;
   }
 
   if (daysLateOrEarly !== null && daysLateOrEarly < 0) {
-    return `You are ${absGap} hrs/week ahead of pace. At this rate, you finish ${formattedDate} — ${absDays} day${absDays === 1 ? "" : "s"} early.`;
+    return `You are ${absGap} hrs/month ahead of pace. At this rate, you finish ${formattedDate} — ${absDays} day${absDays === 1 ? "" : "s"} early.`;
   }
 
   return `You are exactly on pace. Projected finish: ${formattedDate}.`;
@@ -268,18 +270,18 @@ export function buildFlightPathSentence(
 // ---------------------------------------------------------------------------
 
 /**
- * Project a completion date assuming a user-specified weekly pace from today forward.
+ * Project a completion date assuming a user-specified monthly pace from today forward.
  * Returns null when hypotheticalHours ≤ 0.
  */
 export function calcWhatIfProjection(
   today: Date,
   hoursRemaining: number,
-  hypotheticalWeeklyHours: number,
+  hypotheticalMonthlyHours: number,
 ): string | null {
-  if (hypotheticalWeeklyHours <= 0) return null;
+  if (hypotheticalMonthlyHours <= 0) return null;
   if (hoursRemaining <= 0) return formatDate(today);
-  const weeksNeeded = hoursRemaining / hypotheticalWeeklyHours;
-  return formatDate(addDays(today, weeksNeeded * 7));
+  const monthsNeeded = hoursRemaining / hypotheticalMonthlyHours;
+  return formatDate(addDays(today, monthsNeeded * DAYS_PER_MONTH));
 }
 
 // ---------------------------------------------------------------------------
@@ -289,23 +291,23 @@ export function calcWhatIfProjection(
 /**
  * Build a complete computed snapshot from config + logs + a reference date.
  *
- * @param config  Loaded from localStorage — never hardcoded.
- * @param weeklyLogs  All logged weeks, in any order.
- * @param today  Reference date (injectable for testing; defaults to now).
+ * @param config       Loaded from localStorage — never hardcoded.
+ * @param monthlyLogs  All logged months, in any order.
+ * @param today        Reference date (injectable for testing; defaults to now).
  */
 export function buildSnapshot(
   config: CandidateConfig,
-  weeklyLogs: WeeklyLog[],
+  monthlyLogs: MonthlyLog[],
   today: Date = new Date(),
 ): CalculatorSnapshot {
-  const loggedHours = weeklyLogs.reduce((acc, l) => acc + l.unrestrictedHours, 0);
-  const totalBanked = calcTotalHoursBanked(config, weeklyLogs);
+  const loggedHours = monthlyLogs.reduce((acc, l) => acc + l.unrestrictedHours, 0);
+  const totalBanked = calcTotalHoursBanked(config, monthlyLogs);
   const remaining = calcHoursRemaining(config.totalHoursTarget, totalBanked);
-  const weeksLeft = calcWeeksRemaining(config.goalDate, today);
-  const requiredPace = calcRequiredWeeklyPace(remaining, weeksLeft);
-  const rollingAvg = calcFourWeekRollingAverage(weeklyLogs);
+  const monthsLeft = calcMonthsRemaining(config.goalDate, today);
+  const requiredPace = calcRequiredMonthlyPace(remaining, monthsLeft);
+  const rollingAvg = calcThreeMonthAverage(monthlyLogs);
   const deficitSurplus =
-    requiredPace !== null ? calcWeeklyDeficitSurplus(rollingAvg, requiredPace) : 0;
+    requiredPace !== null ? calcMonthlyDeficitSurplus(rollingAvg, requiredPace) : 0;
   const projected = calcProjectedCompletionDate(today, remaining, rollingAvg);
   const daysOffset = calcDaysLateOrEarly(projected, config.goalDate);
   const status = calcStatus(requiredPace, rollingAvg);
@@ -314,7 +316,7 @@ export function buildSnapshot(
     rollingAvg,
     projected,
     daysOffset,
-    weeklyLogs.length === 0,
+    monthlyLogs.length === 0,
   );
 
   return {
@@ -326,11 +328,11 @@ export function buildSnapshot(
     unrestrictedBanked: config.unrestrictedBanked,
     loggedHours: Math.round(loggedHours * 100) / 100,
     hoursRemaining: Math.round(remaining * 100) / 100,
-    weeksRemaining: Math.round(weeksLeft * 100) / 100,
-    requiredWeeklyPace:
+    monthsRemaining: Math.round(monthsLeft * 100) / 100,
+    requiredMonthlyPace:
       requiredPace !== null ? Math.round(requiredPace * 100) / 100 : 0,
-    fourWeekRollingAverage: Math.round(rollingAvg * 100) / 100,
-    weeklyDeficitSurplus: Math.round(deficitSurplus * 100) / 100,
+    threeMonthAverage: Math.round(rollingAvg * 100) / 100,
+    monthlyDeficitSurplus: Math.round(deficitSurplus * 100) / 100,
     projectedCompletionDate: projected,
     daysLateOrEarly: daysOffset,
     status,

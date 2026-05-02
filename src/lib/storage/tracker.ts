@@ -11,7 +11,7 @@
  *     instant; the Supabase write happens in the background.
  */
 
-import type { CandidateConfig, WeeklyLog } from "@/lib/domain/calculator";
+import type { CandidateConfig, MonthlyLog } from "@/lib/domain/calculator";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/db/supabase";
 
 // ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/db/supabas
 
 export type TrackerData = {
   config: CandidateConfig;
-  weeklyLogs: WeeklyLog[];
+  monthlyLogs: MonthlyLog[];
 };
 
 // Single row ID — this is intentionally a constant because the whole app is
@@ -122,7 +122,7 @@ async function loadRemote(): Promise<TrackerData | null> {
 
     const parsed: unknown = {
       config: data.config,
-      weeklyLogs: data.weekly_logs,
+      monthlyLogs: data.weekly_logs,
     };
 
     return isTrackerData(parsed) ? parsed : null;
@@ -139,7 +139,7 @@ async function saveRemote(data: TrackerData): Promise<void> {
     await client.from("weekly_tracker").upsert({
       id: TRACKER_ROW_ID,
       config: data.config,
-      weekly_logs: data.weeklyLogs,
+      weekly_logs: data.monthlyLogs,
     });
   } catch {
     // Remote save failed — local copy is still intact
@@ -162,6 +162,6 @@ function isTrackerData(value: unknown): value is TrackerData {
     typeof cfg.unrestrictedBanked !== "number"
   )
     return false;
-  if (!Array.isArray(obj.weeklyLogs)) return false;
+  if (!Array.isArray(obj.monthlyLogs)) return false;
   return true;
 }

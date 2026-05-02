@@ -3,23 +3,22 @@ import { describe, expect, it } from "vitest";
 import {
   buildSnapshot,
   calcDaysLateOrEarly,
-  calcFourWeekRollingAverage,
+  calcThreeMonthAverage,
   calcHoursRemaining,
   calcProjectedCompletionDate,
-  calcRequiredWeeklyPace,
+  calcRequiredMonthlyPace,
   calcStatus,
   calcTotalHoursBanked,
-  calcWeeksRemaining,
-  calcWeeklyDeficitSurplus,
+  calcMonthsRemaining,
+  calcMonthlyDeficitSurplus,
   calcWhatIfProjection,
   buildFlightPathSentence,
   type CandidateConfig,
-  type WeeklyLog,
+  type MonthlyLog,
 } from "@/lib/domain/calculator";
 
 // ---------------------------------------------------------------------------
 // Seed config — mirrors the spec's opening state.
-// These values represent what a user would enter on first launch.
 // ---------------------------------------------------------------------------
 const SEED_CONFIG: CandidateConfig = {
   name: "Sol",
@@ -33,7 +32,7 @@ const SEED_CONFIG: CandidateConfig = {
 const TODAY = new Date(2026, 3, 17, 12, 0, 0);
 
 // ---------------------------------------------------------------------------
-// Section 10 formula validation
+// Formula validation
 // ---------------------------------------------------------------------------
 
 describe("calcTotalHoursBanked", () => {
@@ -41,12 +40,12 @@ describe("calcTotalHoursBanked", () => {
     expect(calcTotalHoursBanked(SEED_CONFIG, [])).toBe(1312);
   });
 
-  it("adds weekly log hours to the opening balance", () => {
-    const logs: WeeklyLog[] = [
-      { weekOf: "2026-04-14", unrestrictedHours: 18.5 },
-      { weekOf: "2026-04-07", unrestrictedHours: 22.0 },
+  it("adds monthly log hours to the opening balance", () => {
+    const logs: MonthlyLog[] = [
+      { monthOf: "2026-02", unrestrictedHours: 85 },
+      { monthOf: "2026-03", unrestrictedHours: 90 },
     ];
-    expect(calcTotalHoursBanked(SEED_CONFIG, logs)).toBe(1352.5);
+    expect(calcTotalHoursBanked(SEED_CONFIG, logs)).toBe(1487);
   });
 });
 
@@ -60,97 +59,94 @@ describe("calcHoursRemaining", () => {
   });
 });
 
-describe("calcWeeksRemaining", () => {
-  it("returns ~36.86 weeks from April 17 to December 31", () => {
-    // April 17 → Dec 31 = 258 days = 36.857 weeks
-    const weeks = calcWeeksRemaining("2026-12-31", TODAY);
-    expect(weeks).toBeCloseTo(36.86, 1);
+describe("calcMonthsRemaining", () => {
+  it("returns ~8.48 months from April 17 to December 31", () => {
+    // April 17 → Dec 31 = 258 days / 30.44 ≈ 8.477 months
+    const months = calcMonthsRemaining("2026-12-31", TODAY);
+    expect(months).toBeCloseTo(8.48, 1);
   });
 
   it("returns 0 when goal date has passed", () => {
     const past = new Date(2027, 0, 15, 12, 0, 0);
-    expect(calcWeeksRemaining("2026-12-31", past)).toBe(0);
+    expect(calcMonthsRemaining("2026-12-31", past)).toBe(0);
   });
 });
 
-describe("calcRequiredWeeklyPace", () => {
-  it("produces ~18.67 hrs/week with seed data on April 17, 2026", () => {
-    // 688 hrs / 36.857 weeks ≈ 18.67
-    const weeks = calcWeeksRemaining("2026-12-31", TODAY);
-    const pace = calcRequiredWeeklyPace(688, weeks);
+describe("calcRequiredMonthlyPace", () => {
+  it("produces ~81.2 hrs/month with seed data on April 17, 2026", () => {
+    // 688 hrs / 8.477 months ≈ 81.16
+    const months = calcMonthsRemaining("2026-12-31", TODAY);
+    const pace = calcRequiredMonthlyPace(688, months);
     expect(pace).not.toBeNull();
-    expect(pace!).toBeCloseTo(18.67, 1);
+    expect(pace!).toBeCloseTo(81.2, 0);
   });
 
-  it("returns null when weeksRemaining is 0", () => {
-    expect(calcRequiredWeeklyPace(100, 0)).toBeNull();
+  it("returns null when monthsRemaining is 0", () => {
+    expect(calcRequiredMonthlyPace(100, 0)).toBeNull();
   });
 });
 
-describe("calcFourWeekRollingAverage", () => {
+describe("calcThreeMonthAverage", () => {
   it("returns 0 when no logs", () => {
-    expect(calcFourWeekRollingAverage([])).toBe(0);
+    expect(calcThreeMonthAverage([])).toBe(0);
   });
 
-  it("averages only the 4 most recent weeks (sorted by weekOf desc)", () => {
-    const logs: WeeklyLog[] = [
-      { weekOf: "2026-03-16", unrestrictedHours: 10 }, // oldest — should be excluded
-      { weekOf: "2026-03-23", unrestrictedHours: 20 },
-      { weekOf: "2026-03-30", unrestrictedHours: 20 },
-      { weekOf: "2026-04-06", unrestrictedHours: 20 },
-      { weekOf: "2026-04-13", unrestrictedHours: 20 },
+  it("averages only the 3 most recent months (sorted by monthOf desc)", () => {
+    const logs: MonthlyLog[] = [
+      { monthOf: "2025-12", unrestrictedHours: 10 }, // oldest — excluded
+      { monthOf: "2026-01", unrestrictedHours: 10 }, // 2nd oldest — excluded
+      { monthOf: "2026-02", unrestrictedHours: 80 },
+      { monthOf: "2026-03", unrestrictedHours: 80 },
+      { monthOf: "2026-04", unrestrictedHours: 80 },
     ];
-    // 4 most recent: 20+20+20+20 / 4 = 20
-    expect(calcFourWeekRollingAverage(logs)).toBe(20);
+    // 3 most recent: 80+80+80 / 3 = 80
+    expect(calcThreeMonthAverage(logs)).toBe(80);
   });
 
-  it("averages all logs when fewer than 4 exist", () => {
-    const logs: WeeklyLog[] = [
-      { weekOf: "2026-04-07", unrestrictedHours: 15 },
-      { weekOf: "2026-04-14", unrestrictedHours: 25 },
+  it("averages all logs when fewer than 3 exist", () => {
+    const logs: MonthlyLog[] = [
+      { monthOf: "2026-03", unrestrictedHours: 70 },
+      { monthOf: "2026-04", unrestrictedHours: 90 },
     ];
-    expect(calcFourWeekRollingAverage(logs)).toBe(20);
+    expect(calcThreeMonthAverage(logs)).toBe(80);
   });
 });
 
-describe("calcWeeklyDeficitSurplus", () => {
+describe("calcMonthlyDeficitSurplus", () => {
   it("returns positive value when ahead", () => {
-    expect(calcWeeklyDeficitSurplus(22, 19.1)).toBeCloseTo(2.9, 5);
+    expect(calcMonthlyDeficitSurplus(90, 81.2)).toBeCloseTo(8.8, 5);
   });
 
   it("returns negative value when behind", () => {
-    expect(calcWeeklyDeficitSurplus(12, 19.1)).toBeCloseTo(-7.1, 5);
+    expect(calcMonthlyDeficitSurplus(50, 81.2)).toBeCloseTo(-31.2, 5);
   });
 });
 
 describe("calcProjectedCompletionDate", () => {
   it("projects a date correctly based on rolling average", () => {
-    // 688 hrs remaining / 20 hrs per week × 7 = 240.8 days from today
-    const projected = calcProjectedCompletionDate(TODAY, 688, 20);
+    // 688 hrs remaining / 85 hrs per month × 30.44 = 246.4 days from today ≈ Dec 2026
+    const projected = calcProjectedCompletionDate(TODAY, 688, 85);
     expect(projected).not.toBeNull();
-    // Roughly December 2026 / January 2027
-    expect(projected!.startsWith("2026") || projected!.startsWith("2027")).toBe(true);
+    expect(projected!.startsWith("2026")).toBe(true);
   });
 
   it("returns today when hoursRemaining is 0", () => {
-    const projected = calcProjectedCompletionDate(TODAY, 0, 20);
+    const projected = calcProjectedCompletionDate(TODAY, 0, 85);
     expect(projected).toBe("2026-04-17");
   });
 
-  it("returns null when rollingAverage is 0", () => {
+  it("returns null when monthlyAverage is 0", () => {
     expect(calcProjectedCompletionDate(TODAY, 688, 0)).toBeNull();
   });
 });
 
 describe("calcDaysLateOrEarly", () => {
   it("returns positive when projected is after goal", () => {
-    // Projected Feb 14, 2027 vs goal Dec 31, 2026 = 45 days late
     const days = calcDaysLateOrEarly("2027-02-14", "2026-12-31");
     expect(days).toBe(45);
   });
 
   it("returns negative when projected is before goal", () => {
-    // Projected Nov 15, 2026 vs goal Dec 31, 2026 = 46 days early
     const days = calcDaysLateOrEarly("2026-11-15", "2026-12-31");
     expect(days).toBe(-46);
   });
@@ -166,23 +162,23 @@ describe("calcDaysLateOrEarly", () => {
 
 describe("calcStatus", () => {
   it("returns BEHIND when rolling average is < 95% of required pace", () => {
-    expect(calcStatus(20, 15)).toBe("BEHIND");
+    expect(calcStatus(80, 60)).toBe("BEHIND");
   });
 
   it("returns ON TRACK when rolling average is within 5% of required pace", () => {
-    expect(calcStatus(20, 20)).toBe("ON TRACK");
-    expect(calcStatus(20, 19)).toBe("ON TRACK"); // 95% of 20
+    expect(calcStatus(80, 80)).toBe("ON TRACK");
+    expect(calcStatus(80, 76)).toBe("ON TRACK"); // 95% of 80
   });
 
   it("returns AHEAD when rolling average is > 105% of required pace", () => {
-    expect(calcStatus(20, 22)).toBe("AHEAD");
+    expect(calcStatus(80, 90)).toBe("AHEAD");
   });
 });
 
 describe("calcWhatIfProjection", () => {
   it("projects a valid date", () => {
-    // 688 / 25 = 27.52 weeks = ~192.64 days from Apr 17
-    const result = calcWhatIfProjection(TODAY, 688, 25);
+    // 688 / 100 = 6.88 months = ~209 days from Apr 17
+    const result = calcWhatIfProjection(TODAY, 688, 100);
     expect(result).not.toBeNull();
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
@@ -193,7 +189,7 @@ describe("calcWhatIfProjection", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Snapshot integration test — the key validation from the spec
+// Snapshot integration test
 // ---------------------------------------------------------------------------
 
 describe("buildSnapshot — seed data validation", () => {
@@ -203,42 +199,41 @@ describe("buildSnapshot — seed data validation", () => {
     expect(snap.totalHoursBanked).toBe(1312);
     expect(snap.hoursRemaining).toBe(688);
     expect(snap.loggedHours).toBe(0);
-    // Weeks from April 17 → Dec 31, 2026 = 258 days / 7 ≈ 36.86
-    expect(snap.weeksRemaining).toBeCloseTo(36.86, 1);
-    // Required pace ≈ 18.67 hrs/week
-    expect(snap.requiredWeeklyPace).toBeCloseTo(18.67, 1);
+    // Months from April 17 → Dec 31, 2026 = 258 days / 30.44 ≈ 8.48
+    expect(snap.monthsRemaining).toBeCloseTo(8.48, 1);
+    // Required pace ≈ 81.2 hrs/month
+    expect(snap.requiredMonthlyPace).toBeCloseTo(81.2, 0);
     // No logs yet → rolling average is 0
-    expect(snap.fourWeekRollingAverage).toBe(0);
+    expect(snap.threeMonthAverage).toBe(0);
     // No projection yet
     expect(snap.projectedCompletionDate).toBeNull();
-    expect(snap.status).toBe("BEHIND"); // 0 rolling avg < 95% of required
-    expect(snap.flightPathSentence).toMatch(/No weeks logged yet/);
+    expect(snap.status).toBe("BEHIND");
+    expect(snap.flightPathSentence).toMatch(/No months logged yet/);
   });
 
-  it("re-calculates correctly after logging two weeks", () => {
-    const logs: WeeklyLog[] = [
-      { weekOf: "2026-04-07", unrestrictedHours: 22 },
-      { weekOf: "2026-04-14", unrestrictedHours: 18 },
+  it("re-calculates correctly after logging two strong months", () => {
+    const logs: MonthlyLog[] = [
+      { monthOf: "2026-03", unrestrictedHours: 90 },
+      { monthOf: "2026-04", unrestrictedHours: 80 },
     ];
     const snap = buildSnapshot(SEED_CONFIG, logs, TODAY);
 
-    expect(snap.loggedHours).toBe(40);
-    expect(snap.totalHoursBanked).toBe(1352);
-    expect(snap.hoursRemaining).toBe(648);
-    // Rolling avg = (22 + 18) / 2 = 20
-    expect(snap.fourWeekRollingAverage).toBe(20);
-    // 20 hrs/wk > required ~18.67 → AHEAD
+    expect(snap.loggedHours).toBe(170);
+    expect(snap.totalHoursBanked).toBe(1482);
+    expect(snap.hoursRemaining).toBe(518);
+    // Rolling avg = (90 + 80) / 2 = 85
+    expect(snap.threeMonthAverage).toBe(85);
+    // 85 hrs/month > required ~61 hrs/month → AHEAD
     expect(snap.status).toBe("AHEAD");
-    // Projected finish should be before Dec 31
     expect(snap.projectedCompletionDate).not.toBeNull();
     expect(snap.daysLateOrEarly).not.toBeNull();
     expect(snap.daysLateOrEarly!).toBeLessThan(0); // early
   });
 
   it("shows BEHIND and a late projected date when pace is low", () => {
-    const logs: WeeklyLog[] = [
-      { weekOf: "2026-04-07", unrestrictedHours: 10 },
-      { weekOf: "2026-04-14", unrestrictedHours: 10 },
+    const logs: MonthlyLog[] = [
+      { monthOf: "2026-03", unrestrictedHours: 30 },
+      { monthOf: "2026-04", unrestrictedHours: 40 },
     ];
     const snap = buildSnapshot(SEED_CONFIG, logs, TODAY);
 

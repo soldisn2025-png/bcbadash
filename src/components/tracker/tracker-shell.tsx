@@ -6,7 +6,7 @@ import { ThreeNumbers } from "@/components/tracker/three-numbers";
 import { SetupForm } from "@/components/tracker/setup-form";
 import { WeekLogForm } from "@/components/tracker/week-log-form";
 import { ProjectionChart } from "@/components/tracker/projection-chart";
-import { buildSnapshot, type CandidateConfig, type WeeklyLog } from "@/lib/domain/calculator";
+import { buildSnapshot, type CandidateConfig, type MonthlyLog } from "@/lib/domain/calculator";
 import {
   loadTrackerData,
   saveTrackerData,
@@ -53,7 +53,7 @@ export function TrackerShell() {
 
   function handleSetupComplete(config: CandidateConfig) {
     // Preserve existing weekly logs — editing the opening balance must never wipe log history
-    const next: TrackerData = { config, weeklyLogs: data?.weeklyLogs ?? [] };
+    const next: TrackerData = { config, monthlyLogs: data?.monthlyLogs ?? [] };
     void saveTrackerData(next);
     setData(next);
     setPhase("dashboard");
@@ -103,13 +103,13 @@ type DashboardProps = {
 
 function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
   const [showLogForm, setShowLogForm] = useState(false);
-  const snapshot = buildSnapshot(data.config, data.weeklyLogs);
+  const snapshot = buildSnapshot(data.config, data.monthlyLogs);
   const name = data.config.name ?? "You";
 
-  function handleLogSubmit(log: WeeklyLog) {
+  function handleLogSubmit(log: MonthlyLog) {
     const next: TrackerData = {
       ...data,
-      weeklyLogs: [...data.weeklyLogs, log],
+      monthlyLogs: [...data.monthlyLogs, log],
     };
     onDataChange(next);
     setShowLogForm(false);
@@ -119,8 +119,8 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
     <div className="min-h-screen text-[var(--foreground)]">
       {showLogForm && (
         <WeekLogForm
-          requiredPace={snapshot.requiredWeeklyPace}
-          existingLogs={data.weeklyLogs}
+          requiredPace={snapshot.requiredMonthlyPace}
+          existingLogs={data.monthlyLogs}
           onSubmit={handleLogSubmit}
           onClose={() => setShowLogForm(false)}
         />
@@ -175,14 +175,14 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
           onClick={() => setShowLogForm(true)}
           className="w-full rounded-2xl border-2 border-[#122922] bg-[#122922] px-6 py-5 text-left text-white transition hover:bg-[#1a3d33] active:scale-[0.99]"
         >
-          <p className="text-lg font-semibold">Log this week →</p>
+          <p className="text-lg font-semibold">Log this month →</p>
           <p className="mt-0.5 text-sm text-white/70">
-            Record your unrestricted hours. Takes under 60 seconds.
+            Record your unrestricted hours for the month. Takes under 60 seconds.
           </p>
         </button>
         <ProjectionChart
           config={data.config}
-          weeklyLogs={data.weeklyLogs}
+          monthlyLogs={data.monthlyLogs}
           snapshot={snapshot}
         />
         <PlaceholderCard

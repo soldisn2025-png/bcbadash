@@ -13,11 +13,11 @@ import {
 } from "recharts";
 
 import {
-  calcFourWeekRollingAverage,
+  calcThreeMonthAverage,
   calcHoursRemaining,
   calcTotalHoursBanked,
   type CandidateConfig,
-  type WeeklyLog,
+  type MonthlyLog,
   type CalculatorSnapshot,
 } from "@/lib/domain/calculator";
 
@@ -35,7 +35,7 @@ type ChartPoint = {
 
 type ProjectionChartProps = {
   config: CandidateConfig;
-  weeklyLogs: WeeklyLog[];
+  monthlyLogs: MonthlyLog[];
   snapshot: CalculatorSnapshot;
 };
 
@@ -44,6 +44,7 @@ type ProjectionChartProps = {
 // ---------------------------------------------------------------------------
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const DAYS_PER_MONTH = 30.44;
 
 function parseDate(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
@@ -57,6 +58,10 @@ function formatDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+function toYYYYMM(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + Math.round(days) * MS_PER_DAY);
 }
@@ -65,15 +70,8 @@ function daysBetween(a: Date, b: Date): number {
   return (b.getTime() - a.getTime()) / MS_PER_DAY;
 }
 
-function getMondayOf(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
-  return d;
-}
-
-function shortLabel(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function monthLabel(date: Date): string {
+  return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 }
 
 function longLabel(iso: string): string {
@@ -91,94 +89,93 @@ function longLabel(iso: string): string {
 
 function buildChartData(
   config: CandidateConfig,
-  weeklyLogs: WeeklyLog[],
+  monthlyLogs: MonthlyLog[],
   today: Date,
 ): ChartPoint[] {
-  const sortedLogs = [...weeklyLogs].sort((a, b) => a.weekOf.localeCompare(b.weekOf));
+  const sortedLogs = [...monthlyLogs].sort((a, b) => a.monthOf.localeCompare(b.monthOf));
 
-  // Cumulative unrestricted hours by logged week
+  // Cumulative unrestricted hours by logged month (key = YYYY-MM)
   let running = config.unrestrictedBanked;
-  const cumulativeByWeek = new Map<string, number>();
+  const cumulativeByMonth = new Map<string, number>();
   for (const log of sortedLogs) {
     running += log.unrestrictedHours;
-    cumulativeByWeek.set(log.weekOf, running);
+    cumulativeByMonth.set(log.monthOf, running);
   }
   const currentCumulative = running;
 
-  // Pace values
-  const rollingAvg = calcFourWeekRollingAverage(weeklyLogs);
-  const totalBanked = calcTotalHoursBanked(config, weeklyLogs);
+  const rollingAvg = calcThreeMonthAverage(monthlyLogs);
+  const totalBanked = calcTotalHoursBanked(config, monthlyLogs);
   const remaining = calcHoursRemaining(config.totalHoursTarget, totalBanked);
 
   // Unrestricted ceiling — the Y value we're trying to reach
   const unrestrictedCeiling = config.totalHoursTarget - config.restrictedBanked;
 
-  // Last logged week (for projection anchor)
+  // Last logged month (for projection anchor)
   const lastLog = sortedLogs.at(-1);
-  const lastLogDate = lastLog ? parseDate(lastLog.weekOf) : today;
+  const lastLogDate = lastLog ? parseDate(lastLog.monthOf + "-01") : today;
   const lastLogCumulative = lastLog
-    ? (cumulativeByWeek.get(lastLog.weekOf) ?? currentCumulative)
+    ? (cumulativeByMonth.get(lastLog.monthOf) ?? currentCumulative)
     : currentCumulative;
 
   // Projected finish date
   const goalDate = parseDate(config.goalDate);
-  const weeksNeeded = rollingAvg > 0 ? remaining / rollingAvg : 0;
-  const projectedFinish =
-    rollingAvg > 0 ? addDays(today, weeksNeeded * 7) : goalDate;
+  const monthsNeeded = rollingAvg > 0 ? remaining / rollingAvg : 0;
+  const projectedFinish = rollingAvg > 0 ? addDays(today, monthsNeeded * DAYS_PER_MONTH) : goalDate;
 
-  // Opening balance anchor — use asOfDate if provided, else first log or today
+  // Opening balance anchor
   const asOfDate = config.asOfDate
     ? parseDate(config.asOfDate)
     : sortedLogs.length > 0
-      ? parseDate(sortedLogs[0].weekOf)
+      ? parseDate(sortedLogs[0].monthOf + "-01")
       : today;
 
-  // Chart range: start from asOfDate (or a bit before), end past goal/projection
-  const chartStart = getMondayOf(addDays(asOfDate, -7));
   const chartEnd = addDays(
     projectedFinish > goalDate ? projectedFinish : goalDate,
-    14,
+    40, // ~1 month buffer
   );
 
-  // Target line: straight from (asOfDate, unrestrictedBanked) to (goalDate, unrestrictedCeiling)
   const totalTargetDays = Math.max(1, daysBetween(asOfDate, goalDate));
 
-  // Generate weekly data points
+  // Generate one data point per month
   const points: ChartPoint[] = [];
-  let cursor = getMondayOf(chartStart);
+  let cursor = new Date(asOfDate.getFullYear(), asOfDate.getMonth(), 1);
 
   while (cursor <= chartEnd) {
-    const dateStr = formatDate(cursor);
+    const yyyyMM = toYYYYMM(cursor);
     const daysFromAsOf = daysBetween(asOfDate, cursor);
 
     // Target: linear from opening balance on asOfDate to ceiling on goalDate
     const targetRaw =
       config.unrestrictedBanked +
       ((unrestrictedCeiling - config.unrestrictedBanked) * daysFromAsOf) / totalTargetDays;
-    const target = Math.round(Math.min(Math.max(config.unrestrictedBanked, targetRaw), unrestrictedCeiling) * 10) / 10;
+    const target =
+      Math.round(
+        Math.min(Math.max(config.unrestrictedBanked, targetRaw), unrestrictedCeiling) * 10,
+      ) / 10;
 
-    // Actual: only for logged weeks
-    const actual = cumulativeByWeek.has(dateStr)
-      ? (cumulativeByWeek.get(dateStr) as number)
+    // Actual: only for months that have been logged
+    const actual = cumulativeByMonth.has(yyyyMM)
+      ? (cumulativeByMonth.get(yyyyMM) as number)
       : null;
 
-    // Projected: from last log date forward at rolling average
+    // Projected: from last log date forward at monthly rolling average
     let projected: number | null = null;
-    if (rollingAvg > 0 && dateStr >= formatDate(lastLogDate)) {
-      const weeksFromAnchor = daysBetween(lastLogDate, cursor) / 7;
-      const val = lastLogCumulative + rollingAvg * weeksFromAnchor;
+    if (rollingAvg > 0 && cursor >= lastLogDate) {
+      const monthsFromAnchor = daysBetween(lastLogDate, cursor) / DAYS_PER_MONTH;
+      const val = lastLogCumulative + rollingAvg * monthsFromAnchor;
       projected = Math.round(Math.min(val, unrestrictedCeiling) * 10) / 10;
     }
 
     points.push({
-      date: dateStr,
-      label: shortLabel(cursor),
+      date: formatDate(cursor),
+      label: monthLabel(cursor),
       target,
       actual,
       projected,
     });
 
-    cursor = addDays(cursor, 7);
+    // Advance to first of next month
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
   }
 
   return points;
@@ -188,16 +185,16 @@ function buildChartData(
 // Component
 // ---------------------------------------------------------------------------
 
-export function ProjectionChart({ config, weeklyLogs, snapshot }: ProjectionChartProps) {
+export function ProjectionChart({ config, monthlyLogs, snapshot }: ProjectionChartProps) {
   const today = new Date();
-  const data = buildChartData(config, weeklyLogs, today);
+  const data = buildChartData(config, monthlyLogs, today);
   const goalDateStr = config.goalDate;
-  const hasLogs = weeklyLogs.length > 0;
+  const hasLogs = monthlyLogs.length > 0;
 
   const projectedFinish = snapshot.projectedCompletionDate;
   const daysOffset = snapshot.daysLateOrEarly;
 
-  // Y-axis domain — from slightly below opening to slightly above ceiling
+  // Y-axis domain
   const yMin = Math.max(0, config.unrestrictedBanked - 20);
   const yCeiling = config.totalHoursTarget - config.restrictedBanked;
   const yMax = yCeiling + 20;
@@ -236,7 +233,7 @@ export function ProjectionChart({ config, weeklyLogs, snapshot }: ProjectionChar
       {!hasLogs ? (
         <div className="flex h-52 items-center justify-center rounded-xl border border-dashed border-[var(--border)]">
           <p className="text-sm text-[var(--muted)]">
-            Log your first week to see your actual pace vs. the target line.
+            Log your first month to see your actual pace vs. the target line.
           </p>
         </div>
       ) : (
@@ -268,7 +265,7 @@ export function ProjectionChart({ config, weeklyLogs, snapshot }: ProjectionChar
               x={data.find((p) => p.date >= goalDateStr)?.label ?? ""}
               stroke="var(--muted)"
               strokeDasharray="3 3"
-              label={{ value: "Dec 31", fontSize: 10, fill: "var(--muted)", position: "insideTopRight" }}
+              label={{ value: "Goal", fontSize: 10, fill: "var(--muted)", position: "insideTopRight" }}
             />
 
             {/* Ceiling reference */}
@@ -289,14 +286,14 @@ export function ProjectionChart({ config, weeklyLogs, snapshot }: ProjectionChar
               activeDot={false}
             />
 
-            {/* Actual — bars make each logged week visually distinct */}
+            {/* Actual — bars make each logged month visually distinct */}
             <Bar
               name="Actual"
               dataKey="actual"
               fill="#2d7a5a"
               fillOpacity={0.85}
               radius={[3, 3, 0, 0]}
-              barSize={10}
+              barSize={18}
               isAnimationActive={false}
             />
 
@@ -317,12 +314,12 @@ export function ProjectionChart({ config, weeklyLogs, snapshot }: ProjectionChar
 
       {/* Legend gloss */}
       <div className="flex flex-wrap gap-4 text-xs text-[var(--muted)]">
-        <LegendItem color="#9ca3af" dash label="Target — pace needed to hit Dec 31" />
+        <LegendItem color="#9ca3af" dash label="Target — pace needed to hit goal date" />
         <LegendItem color="#2d7a5a" bar label="Actual — cumulative hours logged" />
         <LegendItem
           color={daysOffset !== null && daysOffset > 14 ? "#dc2626" : "#d97706"}
           dash
-          label="Projected — at current 4-week average"
+          label="Projected — at current 3-month average"
         />
       </div>
     </div>

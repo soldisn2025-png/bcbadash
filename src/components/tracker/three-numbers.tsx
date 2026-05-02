@@ -15,16 +15,16 @@ type ThreeNumbersProps = {
  */
 export function ThreeNumbers({ snapshot }: ThreeNumbersProps) {
   const {
-    requiredWeeklyPace,
-    fourWeekRollingAverage,
-    weeklyDeficitSurplus,
+    requiredMonthlyPace,
+    threeMonthAverage,
+    monthlyDeficitSurplus,
     flightPathSentence,
     status,
     projectedCompletionDate,
     daysLateOrEarly,
   } = snapshot;
 
-  const tone = statusTone(status, weeklyDeficitSurplus, requiredWeeklyPace);
+  const tone = statusTone(status, monthlyDeficitSurplus, requiredMonthlyPace);
 
   return (
     <div className="space-y-4">
@@ -50,23 +50,23 @@ export function ThreeNumbers({ snapshot }: ThreeNumbersProps) {
       <div className="grid gap-4 sm:grid-cols-3">
         <NumberCard
           label="Required pace"
-          sublabel="hrs / week to hit goal"
-          value={fmt(requiredWeeklyPace)}
-          unit="hrs/wk"
+          sublabel="hrs / month to hit goal"
+          value={fmt(requiredMonthlyPace)}
+          unit="hrs/mo"
           tone={{ bg: "bg-[var(--card)]", text: "text-[var(--foreground)]", border: "border-[var(--border)]" }}
         />
         <NumberCard
           label="Actual pace"
-          sublabel="4-week rolling average"
-          value={fmt(fourWeekRollingAverage)}
-          unit={fourWeekRollingAverage > 0 ? "hrs/wk" : "no logs yet"}
+          sublabel="3-month average"
+          value={fmt(threeMonthAverage)}
+          unit={threeMonthAverage > 0 ? "hrs/mo" : "no logs yet"}
           tone={{ bg: "bg-[var(--card)]", text: "text-[var(--foreground)]", border: "border-[var(--border)]" }}
         />
         <NumberCard
-          label={weeklyDeficitSurplus >= 0 ? "Surplus" : "Deficit"}
-          sublabel={weeklyDeficitSurplus >= 0 ? "ahead of required pace" : "behind required pace"}
-          value={fourWeekRollingAverage === 0 ? "—" : fmtSigned(weeklyDeficitSurplus)}
-          unit={fourWeekRollingAverage > 0 ? "hrs/wk" : ""}
+          label={monthlyDeficitSurplus >= 0 ? "Surplus" : "Deficit"}
+          sublabel={monthlyDeficitSurplus >= 0 ? "ahead of required pace" : "behind required pace"}
+          value={threeMonthAverage === 0 ? "—" : fmtSigned(monthlyDeficitSurplus)}
+          unit={threeMonthAverage > 0 ? "hrs/mo" : ""}
           tone={tone}
           hero
         />
