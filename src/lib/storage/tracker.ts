@@ -88,8 +88,12 @@ function readLocal(): TrackerData | null {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    return isTrackerData(parsed) ? parsed : null;
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    // Strip old weekly-format logs (had `weekOf` instead of `monthOf`)
+    if (obj && Array.isArray(obj.monthlyLogs)) {
+      obj.monthlyLogs = obj.monthlyLogs.filter(isValidMonthlyLog);
+    }
+    return isTrackerData(obj) ? obj : null;
   } catch {
     return null;
   }
@@ -120,9 +124,13 @@ async function loadRemote(): Promise<TrackerData | null> {
 
     if (error || !data) return null;
 
+    const rawLogs: unknown = data.weekly_logs;
     const parsed: unknown = {
       config: data.config,
-      monthlyLogs: data.weekly_logs,
+      // Filter to only valid MonthlyLog entries — discards old weekly-format
+      // records (which had `weekOf` instead of `monthOf`) so they don't crash
+      // the sort in calcThreeMonthAverage.
+      monthlyLogs: Array.isArray(rawLogs) ? rawLogs.filter(isValidMonthlyLog) : [],
     };
 
     return isTrackerData(parsed) ? parsed : null;
@@ -149,6 +157,12 @@ async function saveRemote(data: TrackerData): Promise<void> {
 // ---------------------------------------------------------------------------
 // Runtime type guard
 // ---------------------------------------------------------------------------
+
+function isValidMonthlyLog(item: unknown): boolean {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return typeof obj.monthOf === "string" && typeof obj.unrestrictedHours === "number";
+}
 
 function isTrackerData(value: unknown): value is TrackerData {
   if (typeof value !== "object" || value === null) return false;
