@@ -13,6 +13,7 @@ import {
   loadTrackerData,
   saveTrackerData,
   exportTrackerJson,
+  type StudyCheckIn,
   type TrackerData,
 } from "@/lib/storage/tracker";
 
@@ -55,7 +56,11 @@ export function TrackerShell() {
 
   function handleSetupComplete(config: CandidateConfig) {
     // Preserve existing weekly logs — editing the opening balance must never wipe log history
-    const next: TrackerData = { config, monthlyLogs: data?.monthlyLogs ?? [] };
+    const next: TrackerData = {
+      config,
+      monthlyLogs: data?.monthlyLogs ?? [],
+      studyCheckIns: data?.studyCheckIns ?? [],
+    };
     void saveTrackerData(next);
     setData(next);
     setPhase("dashboard");
@@ -135,6 +140,28 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
     const next: TrackerData = {
       ...data,
       monthlyLogs: data.monthlyLogs.filter((l) => l.monthOf !== monthOf),
+    };
+    onDataChange(next);
+  }
+
+  function handleStudyCheckInChange(
+    weekStart: string,
+    patch: Pick<StudyCheckIn, "completed"> | Pick<StudyCheckIn, "comment">,
+  ) {
+    const existing = data.studyCheckIns.find((checkIn) => checkIn.weekStart === weekStart);
+    const nextCheckIn: StudyCheckIn = {
+      weekStart,
+      completed: existing?.completed ?? false,
+      comment: existing?.comment ?? "",
+      updatedAt: new Date().toISOString(),
+      ...patch,
+    };
+    const next: TrackerData = {
+      ...data,
+      studyCheckIns: [
+        ...data.studyCheckIns.filter((checkIn) => checkIn.weekStart !== weekStart),
+        nextCheckIn,
+      ],
     };
     onDataChange(next);
   }
@@ -258,7 +285,11 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
         />
           </>
         ) : (
-          <StudyPlan schedule={studySchedule} />
+          <StudyPlan
+            checkIns={data.studyCheckIns}
+            schedule={studySchedule}
+            onCheckInChange={handleStudyCheckInChange}
+          />
         )}
       </div>
     </div>

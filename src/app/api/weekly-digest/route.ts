@@ -160,6 +160,7 @@ function buildEmailHtml({
   const moduleText = studySchedule.currentWeek.modules
     .map((module) => (module === "hoom-house" ? "Hoom House" : "BDS"))
     .join(" + ");
+  const moduleRecommendation = studySchedule.currentWeek.moduleRecommendation;
 
   return `<!DOCTYPE html>
 <html>
@@ -186,8 +187,11 @@ function buildEmailHtml({
       <div style="background:#f5efe4;border-radius:12px;padding:16px 20px;border:1px solid #dccfbe;">
         <p style="margin:0 0 4px;font-size:11px;color:#6d8278;text-transform:uppercase;letter-spacing:0.15em;">This week's study plan</p>
         <p style="margin:0;font-size:20px;font-weight:700;color:#122922;">${studySchedule.currentWeek.targetHours} hrs · ${moduleText}</p>
+        <p style="margin:8px 0 0;font-size:14px;font-weight:700;color:#122922;">${moduleRecommendation.domain}: ${moduleRecommendation.label}</p>
+        <p style="margin:6px 0 0;font-size:13px;color:#52685f;line-height:1.5;">${moduleRecommendation.detail}</p>
         <p style="margin:8px 0 0;font-size:14px;color:#52685f;line-height:1.5;">${studySchedule.currentWeek.focus}</p>
         <p style="margin:8px 0 0;font-size:13px;color:#6d8278;line-height:1.5;">${studySchedule.currentWeek.reminder}</p>
+        <p style="margin:8px 0 0;font-size:12px;color:#6d8278;line-height:1.5;">After studying, open the dashboard and leave both the weekly checkmark and comment.</p>
       </div>
     </div>
 

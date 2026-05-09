@@ -19,8 +19,6 @@ type FormState = {
   unrestrictedBanked: string;
   asOfDate: string;
   examDate: string;
-  weeklyStudyHoursTarget: string;
-  warmupStudyHoursPerWeek: string;
 };
 
 function todayIso(): string {
@@ -35,8 +33,6 @@ const DEFAULTS: FormState = {
   unrestrictedBanked: "512",
   asOfDate: todayIso(),
   examDate: "",
-  weeklyStudyHoursTarget: "8",
-  warmupStudyHoursPerWeek: "3",
 };
 
 export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
@@ -50,8 +46,6 @@ export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
           unrestrictedBanked: String(existing.unrestrictedBanked),
           asOfDate: existing.asOfDate ?? todayIso(),
           examDate: existing.examDate ?? "",
-          weeklyStudyHoursTarget: String(existing.weeklyStudyHoursTarget ?? 8),
-          warmupStudyHoursPerWeek: String(existing.warmupStudyHoursPerWeek ?? 3),
         }
       : DEFAULTS,
   );
@@ -68,8 +62,6 @@ export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
     const totalHoursTarget = Number(form.totalHoursTarget);
     const restrictedBanked = Number(form.restrictedBanked);
     const unrestrictedBanked = Number(form.unrestrictedBanked);
-    const weeklyStudyHoursTarget = Number(form.weeklyStudyHoursTarget);
-    const warmupStudyHoursPerWeek = Number(form.warmupStudyHoursPerWeek);
 
     if (!form.goalDate) next.goalDate = "Required";
     if (form.examDate && form.examDate < form.goalDate)
@@ -80,10 +72,6 @@ export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
       next.restrictedBanked = "Must be 0 or more";
     if (isNaN(unrestrictedBanked) || unrestrictedBanked < 0)
       next.unrestrictedBanked = "Must be 0 or more";
-    if (isNaN(weeklyStudyHoursTarget) || weeklyStudyHoursTarget < 1)
-      next.weeklyStudyHoursTarget = "Must be at least 1 hour";
-    if (isNaN(warmupStudyHoursPerWeek) || warmupStudyHoursPerWeek < 0)
-      next.warmupStudyHoursPerWeek = "Must be 0 or more";
     if (restrictedBanked + unrestrictedBanked >= totalHoursTarget)
       next.unrestrictedBanked = "Opening balance is already at or above the total goal";
 
@@ -101,8 +89,6 @@ export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
       asOfDate: form.asOfDate || todayIso(),
       examDate: form.examDate || undefined,
       bdsAccessLeadMonths: 3,
-      weeklyStudyHoursTarget,
-      warmupStudyHoursPerWeek,
     };
   }
 
@@ -223,31 +209,10 @@ export function SetupForm({ existing, onComplete, onCancel }: SetupFormProps) {
                 className={inputClass(!!errors.examDate)}
               />
             </Field>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Weekly study target after 2,000 hours" error={errors.weeklyStudyHoursTarget}>
-                <input
-                  type="number"
-                  value={form.weeklyStudyHoursTarget}
-                  min={1}
-                  step={0.5}
-                  onChange={(e) => set("weeklyStudyHoursTarget", e.target.value)}
-                  className={inputClass(!!errors.weeklyStudyHoursTarget)}
-                />
-              </Field>
-              <Field label="Weekly warmup target before 2,000 hours" error={errors.warmupStudyHoursPerWeek}>
-                <input
-                  type="number"
-                  value={form.warmupStudyHoursPerWeek}
-                  min={0}
-                  step={0.5}
-                  onChange={(e) => set("warmupStudyHoursPerWeek", e.target.value)}
-                  className={inputClass(!!errors.warmupStudyHoursPerWeek)}
-                />
-              </Field>
-            </div>
             <p className="text-xs text-[var(--muted)] leading-5">
-              Hoom House is available any time. BDS is treated as available during the final
-              three months before exam day.
+              The app suggests weekly study hours from the current hour balance, the
+              2,000-hour goal date, and the BDS window. Hoom House is available any
+              time. BDS is treated as available during the final three months before exam day.
             </p>
           </div>
 

@@ -21,6 +21,14 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/db/supabas
 export type TrackerData = {
   config: CandidateConfig;
   monthlyLogs: MonthlyLog[];
+  studyCheckIns: StudyCheckIn[];
+};
+
+export type StudyCheckIn = {
+  weekStart: string;
+  completed: boolean;
+  comment: string;
+  updatedAt: string;
 };
 
 // Single row ID — this is intentionally a constant because the whole app is
@@ -93,6 +101,9 @@ function readLocal(): TrackerData | null {
     if (obj && Array.isArray(obj.monthlyLogs)) {
       obj.monthlyLogs = obj.monthlyLogs.filter(isValidMonthlyLog);
     }
+    if (obj && !Array.isArray(obj.studyCheckIns)) {
+      obj.studyCheckIns = readStudyCheckInsFromConfig(obj.config);
+    }
     return isTrackerData(obj) ? obj : null;
   } catch {
     return null;
@@ -125,12 +136,14 @@ async function loadRemote(): Promise<TrackerData | null> {
     if (error || !data) return null;
 
     const rawLogs: unknown = data.weekly_logs;
+    const config = data.config as Record<string, unknown>;
     const parsed: unknown = {
-      config: data.config,
+      config,
       // Filter to only valid MonthlyLog entries — discards old weekly-format
       // records (which had `weekOf` instead of `monthOf`) so they don't crash
       // the sort in calcThreeMonthAverage.
       monthlyLogs: Array.isArray(rawLogs) ? rawLogs.filter(isValidMonthlyLog) : [],
+      studyCheckIns: readStudyCheckInsFromConfig(config),
     };
 
     return isTrackerData(parsed) ? parsed : null;
@@ -146,7 +159,10 @@ async function saveRemote(data: TrackerData): Promise<void> {
   try {
     await client.from("weekly_tracker").upsert({
       id: TRACKER_ROW_ID,
-      config: data.config,
+      config: {
+        ...data.config,
+        studyCheckIns: data.studyCheckIns,
+      },
       weekly_logs: data.monthlyLogs,
     });
   } catch {
@@ -164,6 +180,23 @@ function isValidMonthlyLog(item: unknown): boolean {
   return typeof obj.monthOf === "string" && typeof obj.unrestrictedHours === "number";
 }
 
+function isValidStudyCheckIn(item: unknown): item is StudyCheckIn {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    typeof obj.weekStart === "string" &&
+    typeof obj.completed === "boolean" &&
+    typeof obj.comment === "string" &&
+    typeof obj.updatedAt === "string"
+  );
+}
+
+function readStudyCheckInsFromConfig(config: unknown): StudyCheckIn[] {
+  if (typeof config !== "object" || config === null) return [];
+  const value = (config as Record<string, unknown>).studyCheckIns;
+  return Array.isArray(value) ? value.filter(isValidStudyCheckIn) : [];
+}
+
 function isTrackerData(value: unknown): value is TrackerData {
   if (typeof value !== "object" || value === null) return false;
   const obj = value as Record<string, unknown>;
@@ -177,5 +210,7 @@ function isTrackerData(value: unknown): value is TrackerData {
   )
     return false;
   if (!Array.isArray(obj.monthlyLogs)) return false;
+  if (!Array.isArray(obj.studyCheckIns)) return false;
+  if (!obj.studyCheckIns.every(isValidStudyCheckIn)) return false;
   return true;
 }
