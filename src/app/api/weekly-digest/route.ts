@@ -19,6 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { buildSnapshot } from "@/lib/domain/calculator";
 import type { CandidateConfig, MonthlyLog } from "@/lib/domain/calculator";
+import { buildStudyScheduleSnapshot } from "@/lib/domain/study-scheduler";
 
 // ---------------------------------------------------------------------------
 // Auth guard — Vercel attaches Authorization: Bearer <CRON_SECRET> on cron
@@ -63,9 +64,10 @@ export async function GET(req: NextRequest) {
   }
 
   const snapshot = buildSnapshot(trackerData.config, trackerData.monthlyLogs);
+  const studySchedule = buildStudyScheduleSnapshot(trackerData.config, trackerData.monthlyLogs);
   const name = trackerData.config.name ?? "Sol";
   const subject = buildSubject(name, snapshot.status);
-  const html = buildEmailHtml({ name, snapshot, appUrl });
+  const html = buildEmailHtml({ name, snapshot, studySchedule, appUrl });
 
   const resend = new Resend(resendKey);
   const { error } = await resend.emails.send({
@@ -124,10 +126,12 @@ function buildSubject(name: string, status: string): string {
 function buildEmailHtml({
   name,
   snapshot,
+  studySchedule,
   appUrl,
 }: {
   name: string;
   snapshot: ReturnType<typeof buildSnapshot>;
+  studySchedule: ReturnType<typeof buildStudyScheduleSnapshot>;
   appUrl: string;
 }): string {
   const statusColor =
@@ -153,6 +157,9 @@ function buildEmailHtml({
     : null;
 
   const pct = Math.min(100, (snapshot.totalHoursBanked / snapshot.totalHoursTarget) * 100);
+  const moduleText = studySchedule.currentWeek.modules
+    .map((module) => (module === "hoom-house" ? "Hoom House" : "BDS"))
+    .join(" + ");
 
   return `<!DOCTYPE html>
 <html>
@@ -171,6 +178,16 @@ function buildEmailHtml({
       <div style="background:${statusBg};border-radius:12px;padding:16px 20px;display:inline-block;width:100%;box-sizing:border-box;">
         <p style="margin:0 0 4px;font-size:22px;font-weight:700;color:${statusColor};">${snapshot.status}</p>
         <p style="margin:0;font-size:14px;color:${statusColor};line-height:1.5;">${snapshot.flightPathSentence}</p>
+      </div>
+    </div>
+
+    <!-- Study target -->
+    <div style="padding:20px 28px 0;">
+      <div style="background:#f5efe4;border-radius:12px;padding:16px 20px;border:1px solid #dccfbe;">
+        <p style="margin:0 0 4px;font-size:11px;color:#6d8278;text-transform:uppercase;letter-spacing:0.15em;">This week's study plan</p>
+        <p style="margin:0;font-size:20px;font-weight:700;color:#122922;">${studySchedule.currentWeek.targetHours} hrs · ${moduleText}</p>
+        <p style="margin:8px 0 0;font-size:14px;color:#52685f;line-height:1.5;">${studySchedule.currentWeek.focus}</p>
+        <p style="margin:8px 0 0;font-size:13px;color:#6d8278;line-height:1.5;">${studySchedule.currentWeek.reminder}</p>
       </div>
     </div>
 

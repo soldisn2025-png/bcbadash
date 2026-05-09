@@ -36,6 +36,14 @@ export type CandidateConfig = {
    * Used as the chart's starting anchor. Defaults to today if omitted.
    */
   asOfDate?: string;
+  /** Optional BCBA exam date used by the study scheduler. */
+  examDate?: string;
+  /** How many months before the exam BDS access begins. Defaults to 3. */
+  bdsAccessLeadMonths?: number;
+  /** Weekly study target once fieldwork is complete. Defaults to 8. */
+  weeklyStudyHoursTarget?: number;
+  /** Light weekly study target while fieldwork is still the priority. Defaults to 3. */
+  warmupStudyHoursPerWeek?: number;
 };
 
 export type TrackingStatus = "ON TRACK" | "AHEAD" | "BEHIND";

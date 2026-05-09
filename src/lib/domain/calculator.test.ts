@@ -12,7 +12,6 @@ import {
   calcMonthsRemaining,
   calcMonthlyDeficitSurplus,
   calcWhatIfProjection,
-  buildFlightPathSentence,
   type CandidateConfig,
   type MonthlyLog,
 } from "@/lib/domain/calculator";

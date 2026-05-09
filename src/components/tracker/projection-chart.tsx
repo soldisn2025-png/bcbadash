@@ -254,7 +254,7 @@ export function ProjectionChart({ config, monthlyLogs, snapshot }: ProjectionCha
               width={38}
               tickFormatter={(v: number) => `${v}`}
             />
-            <Tooltip content={<ChartTooltip goalDate={goalDateStr} ceiling={yCeiling} />} />
+            <Tooltip content={<ChartTooltip ceiling={yCeiling} />} />
             <Legend
               iconType="line"
               wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
@@ -334,13 +334,11 @@ function ChartTooltip({
   active,
   payload,
   label,
-  goalDate,
   ceiling,
 }: {
   active?: boolean;
   payload?: Array<{ name: string; value: number | null; color: string }>;
   label?: string;
-  goalDate: string;
   ceiling: number;
 }) {
   if (!active || !payload?.length) return null;

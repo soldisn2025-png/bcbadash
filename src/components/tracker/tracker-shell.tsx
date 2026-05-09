@@ -6,7 +6,9 @@ import { ThreeNumbers } from "@/components/tracker/three-numbers";
 import { SetupForm } from "@/components/tracker/setup-form";
 import { WeekLogForm } from "@/components/tracker/week-log-form";
 import { ProjectionChart } from "@/components/tracker/projection-chart";
+import { StudyPlan } from "@/components/tracker/study-plan";
 import { buildSnapshot, type CandidateConfig, type MonthlyLog } from "@/lib/domain/calculator";
+import { buildStudyScheduleSnapshot } from "@/lib/domain/study-scheduler";
 import {
   loadTrackerData,
   saveTrackerData,
@@ -104,7 +106,9 @@ type DashboardProps = {
 function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
   const [showLogForm, setShowLogForm] = useState(false);
   const [editingLog, setEditingLog] = useState<MonthlyLog | null>(null);
+  const [activeView, setActiveView] = useState<"hours" | "study">("hours");
   const snapshot = buildSnapshot(data.config, data.monthlyLogs);
+  const studySchedule = buildStudyScheduleSnapshot(data.config, data.monthlyLogs);
   const name = data.config.name ?? "You";
 
   function handleLogSubmit(log: MonthlyLog) {
@@ -190,6 +194,34 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
           </div>
         </header>
 
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-1">
+          <button
+            type="button"
+            onClick={() => setActiveView("hours")}
+            className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+              activeView === "hours"
+                ? "bg-[#122922] text-white"
+                : "text-[var(--soft-ink)] hover:bg-[var(--border)]"
+            }`}
+          >
+            Hours
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveView("study")}
+            className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+              activeView === "study"
+                ? "bg-[#122922] text-white"
+                : "text-[var(--soft-ink)] hover:bg-[var(--border)]"
+            }`}
+          >
+            Study
+          </button>
+        </div>
+
+        {activeView === "hours" ? (
+          <>
+
         {/* The Three Numbers — always visible, always first */}
         <section aria-label="Pace summary">
           <ThreeNumbers snapshot={snapshot} />
@@ -224,6 +256,10 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
           label="What if?"
           description="Drag a slider to see how a stronger or lighter week shifts your finish date."
         />
+          </>
+        ) : (
+          <StudyPlan schedule={studySchedule} />
+        )}
       </div>
     </div>
   );
