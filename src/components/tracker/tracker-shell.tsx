@@ -146,13 +146,17 @@ function Dashboard({ data, onOpenSettings, onDataChange }: DashboardProps) {
 
   function handleStudyCheckInChange(
     weekStart: string,
-    patch: Pick<StudyCheckIn, "completed"> | Pick<StudyCheckIn, "comment">,
+    patch:
+      | Pick<StudyCheckIn, "completed">
+      | Pick<StudyCheckIn, "comment">
+      | Pick<StudyCheckIn, "completedTaskIds">,
   ) {
     const existing = data.studyCheckIns.find((checkIn) => checkIn.weekStart === weekStart);
     const nextCheckIn: StudyCheckIn = {
       weekStart,
       completed: existing?.completed ?? false,
       comment: existing?.comment ?? "",
+      completedTaskIds: existing?.completedTaskIds ?? [],
       updatedAt: new Date().toISOString(),
       ...patch,
     };

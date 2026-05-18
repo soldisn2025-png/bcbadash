@@ -28,6 +28,7 @@ export type StudyCheckIn = {
   weekStart: string;
   completed: boolean;
   comment: string;
+  completedTaskIds: string[];
   updatedAt: string;
 };
 
@@ -187,6 +188,8 @@ function isValidStudyCheckIn(item: unknown): item is StudyCheckIn {
     typeof obj.weekStart === "string" &&
     typeof obj.completed === "boolean" &&
     typeof obj.comment === "string" &&
+    (!("completedTaskIds" in obj) ||
+      (Array.isArray(obj.completedTaskIds) && obj.completedTaskIds.every((id) => typeof id === "string"))) &&
     typeof obj.updatedAt === "string"
   );
 }
@@ -194,7 +197,7 @@ function isValidStudyCheckIn(item: unknown): item is StudyCheckIn {
 function readStudyCheckInsFromConfig(config: unknown): StudyCheckIn[] {
   if (typeof config !== "object" || config === null) return [];
   const value = (config as Record<string, unknown>).studyCheckIns;
-  return Array.isArray(value) ? value.filter(isValidStudyCheckIn) : [];
+  return Array.isArray(value) ? value.filter(isValidStudyCheckIn).map(normalizeStudyCheckIn) : [];
 }
 
 function isTrackerData(value: unknown): value is TrackerData {
@@ -212,5 +215,13 @@ function isTrackerData(value: unknown): value is TrackerData {
   if (!Array.isArray(obj.monthlyLogs)) return false;
   if (!Array.isArray(obj.studyCheckIns)) return false;
   if (!obj.studyCheckIns.every(isValidStudyCheckIn)) return false;
+  obj.studyCheckIns = obj.studyCheckIns.map(normalizeStudyCheckIn);
   return true;
+}
+
+function normalizeStudyCheckIn(checkIn: StudyCheckIn): StudyCheckIn {
+  return {
+    ...checkIn,
+    completedTaskIds: Array.isArray(checkIn.completedTaskIds) ? checkIn.completedTaskIds : [],
+  };
 }

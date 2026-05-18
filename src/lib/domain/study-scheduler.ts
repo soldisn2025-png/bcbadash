@@ -1,136 +1,40 @@
+import { BACB_6TH_EDITION_DOMAINS, BACB_TOTAL_TASKS, type BacbDomain, type BacbTask } from "@/lib/domain/bacb-outline";
 import { buildSnapshot, type CandidateConfig, type MonthlyLog } from "@/lib/domain/calculator";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_BDS_LEAD_MONTHS = 3;
+const LOOKAHEAD_WEEKS = 6;
 
-export type StudyModuleId = "hoom-house" | "bds";
+export type StudyTrackId = "one-hour" | "two-hour";
 
 export type StudyModuleRecommendation = {
-  provider: StudyModuleId;
-  label: string;
-  domain: string;
-  detail: string;
+  domainId: string;
+  domainTitle: string;
+  questionCount: number;
+  examPercent: number;
+  tasks: BacbTask[];
 };
 
 export type StudyWeek = {
   weekStart: string;
   weekEnd: string;
-  phase: "hours-first" | "hoom-house" | "bds-window" | "exam-week" | "done";
+  phase: "outline" | "compressed" | "review" | "exam-week" | "done";
   focus: string;
   targetHours: number;
-  modules: StudyModuleId[];
-  moduleRecommendation: StudyModuleRecommendation;
+  dailyHours: 1 | 2;
+  modules: StudyModuleRecommendation[];
   tasks: string[];
   reminder: string;
 };
 
-const HOOM_HOUSE_SEQUENCE: StudyModuleRecommendation[] = [
-  {
-    provider: "hoom-house",
-    label: "Hoom House: Concepts & Principles",
-    domain: "Domain B",
-    detail: "Start with Concepts & Principles, including stimulus and response classes, verbal behavior, and motivating operations.",
-  },
-  {
-    provider: "hoom-house",
-    label: "Hoom House: Measurement, Data Display, & Interpretation",
-    domain: "Domain C",
-    detail: "Work through measurement, operational definitions, graphing, and data interpretation.",
-  },
-  {
-    provider: "hoom-house",
-    label: "Hoom House: Behavior Change Procedures I",
-    domain: "Domain G",
-    detail: "Focus on reinforcement, punishment, prompting, shaping, and prompt fading.",
-  },
-  {
-    provider: "hoom-house",
-    label: "Hoom House: Behavior Change Procedures II/III",
-    domain: "Domain G",
-    detail: "Study task analysis, chains, extinction, discrimination, generalization, and maintenance.",
-  },
-  {
-    provider: "hoom-house",
-    label: "Hoom House: Behavior Assessment",
-    domain: "Domain F",
-    detail: "Review FBA methods, preference assessments, descriptive assessment, and functional analysis.",
-  },
-  {
-    provider: "hoom-house",
-    label: "Hoom House: Ethics",
-    domain: "Domain E",
-    detail: "Review ethical decision making, confidentiality, boundaries, competence, and professional conduct.",
-  },
-  {
-    provider: "hoom-house",
-    label: "Hoom House: Selecting and Implementing Interventions",
-    domain: "Domain H",
-    detail: "Study intervention goals, contextual fit, social validity, relapse, and data-based decisions.",
-  },
-  {
-    provider: "hoom-house",
-    label: "Hoom House: Personnel Supervision and Management",
-    domain: "Domain I",
-    detail: "Review supervision, feedback, training, monitoring performance, and management systems.",
-  },
-  {
-    provider: "hoom-house",
-    label: "Hoom House: Experimental Design",
-    domain: "Domain D",
-    detail: "Review reversal, multielement, multiple baseline, changing criterion, and validity threats.",
-  },
-];
-
-const BDS_SEQUENCE: StudyModuleRecommendation[] = [
-  {
-    provider: "bds",
-    label: "BDS: Domain G mastery modules",
-    domain: "Domain G",
-    detail: "Prioritize behavior-change procedures, then review missed items in Hoom House if a concept is shaky.",
-  },
-  {
-    provider: "bds",
-    label: "BDS: Domain B mastery modules",
-    domain: "Domain B",
-    detail: "Prioritize concepts and principles with active responding until the explanations feel automatic.",
-  },
-  {
-    provider: "bds",
-    label: "BDS: Domain F mastery modules",
-    domain: "Domain F",
-    detail: "Focus on assessment decisions, FBA logic, preference assessment, and functional analysis.",
-  },
-  {
-    provider: "bds",
-    label: "BDS: Domain E mastery modules",
-    domain: "Domain E",
-    detail: "Practice ethics application questions and write down the rule behind each missed item.",
-  },
-  {
-    provider: "bds",
-    label: "BDS: Domain C mastery modules",
-    domain: "Domain C",
-    detail: "Focus on measurement selection, graph interpretation, validity, reliability, and procedural integrity.",
-  },
-  {
-    provider: "bds",
-    label: "BDS: Domain H mastery modules",
-    domain: "Domain H",
-    detail: "Practice choosing interventions from assessment results, client context, and data.",
-  },
-  {
-    provider: "bds",
-    label: "BDS: Domain I mastery modules",
-    domain: "Domain I",
-    detail: "Review staff training, feedback, supervision systems, and performance monitoring.",
-  },
-  {
-    provider: "bds",
-    label: "BDS: Domains A and D mastery modules",
-    domain: "Domains A/D",
-    detail: "Cover foundations and experimental design, then fold misses into mixed review.",
-  },
-];
+export type StudyTrack = {
+  id: StudyTrackId;
+  label: string;
+  dailyHours: 1 | 2;
+  weeklyHours: 7 | 14;
+  currentWeek: StudyWeek;
+  upcomingWeeks: StudyWeek[];
+};
 
 export type StudyScheduleSnapshot = {
   examDate: string;
@@ -139,6 +43,12 @@ export type StudyScheduleSnapshot = {
   bdsStartDate: string;
   weeksUntilExam: number;
   weeksUntilBds: number;
+  outline: {
+    domains: BacbDomain[];
+    totalTasks: number;
+    totalQuestions: number;
+  };
+  tracks: StudyTrack[];
   currentWeek: StudyWeek;
   upcomingWeeks: StudyWeek[];
   recommendation: {
@@ -150,6 +60,10 @@ export type StudyScheduleSnapshot = {
     hoomHouse: "available";
     bds: "locked" | "available";
   };
+};
+
+type AssignedTask = BacbTask & {
+  domain: BacbDomain;
 };
 
 export function buildStudyScheduleSnapshot(
@@ -171,20 +85,12 @@ export function buildStudyScheduleSnapshot(
     hoomHouse: "available" as const,
     bds: todayIso >= bdsStartDate ? ("available" as const) : ("locked" as const),
   };
-
   const currentWeekStart = startOfWeek(today);
-  const upcomingWeeks = Array.from({ length: 6 }, (_, index) =>
-    buildStudyWeek({
-      weekStart: addDays(currentWeekStart, index * 7),
-      weekIndex: index,
-      fieldworkPaceMonthly: hoursSnapshot.requiredMonthlyPace,
-      fieldworkPressure: getFieldworkPressure(hoursSnapshot.requiredMonthlyPace),
-      examDate,
-      hoursReadyDate,
-      bdsStartDate,
-      todayIso,
-    }),
-  );
+  const totalWeeks = Math.max(1, Math.ceil(daysBetween(currentWeekStart, parseDate(examDate)) / 7));
+  const tracks = [
+    buildStudyTrack("one-hour", 1, currentWeekStart, examDate, totalWeeks),
+    buildStudyTrack("two-hour", 2, currentWeekStart, examDate, totalWeeks),
+  ];
 
   return {
     examDate,
@@ -193,141 +99,201 @@ export function buildStudyScheduleSnapshot(
     bdsStartDate,
     weeksUntilExam: Math.max(0, Math.ceil(daysBetween(today, parseDate(examDate)) / 7)),
     weeksUntilBds: Math.max(0, Math.ceil(daysBetween(today, parseDate(bdsStartDate)) / 7)),
-    currentWeek: upcomingWeeks[0],
-    upcomingWeeks,
+    outline: {
+      domains: BACB_6TH_EDITION_DOMAINS,
+      totalTasks: BACB_TOTAL_TASKS,
+      totalQuestions: BACB_6TH_EDITION_DOMAINS.reduce((total, domain) => total + domain.questionCount, 0),
+    },
+    tracks,
+    currentWeek: tracks[0].currentWeek,
+    upcomingWeeks: tracks[0].upcomingWeeks,
     recommendation: {
       fieldworkPaceMonthly: hoursSnapshot.requiredMonthlyPace,
       fieldworkPressure: getFieldworkPressure(hoursSnapshot.requiredMonthlyPace),
-      studyHoursBasis: buildStudyHoursBasis(hoursSnapshot.requiredMonthlyPace, hoursReadyDate, bdsStartDate, examDate),
+      studyHoursBasis: buildStudyHoursBasis(
+        hoursSnapshot.requiredMonthlyPace,
+        totalWeeks,
+        bdsStartDate,
+        examDate,
+      ),
     },
     moduleAccess,
   };
 }
 
+function buildStudyTrack(
+  id: StudyTrackId,
+  dailyHours: 1 | 2,
+  currentWeekStart: Date,
+  examDate: string,
+  totalWeeks: number,
+): StudyTrack {
+  const weeklyHours = (dailyHours * 7) as 7 | 14;
+  const scheduleWeeks = Math.min(LOOKAHEAD_WEEKS, Math.max(1, totalWeeks + 1));
+  const weeklyAssignments = assignTasksAcrossWeeks(totalWeeks, dailyHours);
+  const upcomingWeeks = Array.from({ length: scheduleWeeks }, (_, weekIndex) =>
+    buildStudyWeek({
+      weekStart: addDays(currentWeekStart, weekIndex * 7),
+      weekIndex,
+      totalWeeks,
+      weeklyHours,
+      dailyHours,
+      assignments: weeklyAssignments[weekIndex] ?? [],
+      examDate,
+    }),
+  );
+
+  return {
+    id,
+    label: dailyHours === 1 ? "1 hour/day" : "2 hours/day",
+    dailyHours,
+    weeklyHours,
+    currentWeek: upcomingWeeks[0],
+    upcomingWeeks,
+  };
+}
+
+function assignTasksAcrossWeeks(totalWeeks: number, dailyHours: 1 | 2): AssignedTask[][] {
+  const orderedTasks = orderTasksByExamWeight();
+  const baseWeeks = Math.max(1, totalWeeks);
+  const firstPassWeeks = dailyHours === 1 ? baseWeeks : Math.max(1, Math.ceil(baseWeeks * 0.65));
+  const assignments = Array.from({ length: baseWeeks }, () => [] as AssignedTask[]);
+
+  for (let index = 0; index < orderedTasks.length; index += 1) {
+    const weekIndex = Math.min(firstPassWeeks - 1, Math.floor((index * firstPassWeeks) / orderedTasks.length));
+    assignments[weekIndex].push(orderedTasks[index]);
+  }
+
+  if (dailyHours === 2 && firstPassWeeks < baseWeeks) {
+    const reviewTasks = orderTasksByExamWeight();
+    for (let weekIndex = firstPassWeeks; weekIndex < baseWeeks; weekIndex += 1) {
+      const reviewStart = Math.floor(((weekIndex - firstPassWeeks) * reviewTasks.length) / (baseWeeks - firstPassWeeks));
+      const reviewEnd = Math.floor(((weekIndex - firstPassWeeks + 1) * reviewTasks.length) / (baseWeeks - firstPassWeeks));
+      assignments[weekIndex].push(...reviewTasks.slice(reviewStart, reviewEnd));
+    }
+  }
+
+  return assignments;
+}
+
+function orderTasksByExamWeight(): AssignedTask[] {
+  return BACB_6TH_EDITION_DOMAINS.flatMap((domain) =>
+    domain.tasks.map((task) => ({
+      ...task,
+      domain,
+    })),
+  ).sort((left, right) => {
+    const weightDelta = right.domain.questionCount - left.domain.questionCount;
+    return weightDelta || left.id.localeCompare(right.id, undefined, { numeric: true });
+  });
+}
+
 function buildStudyWeek({
   weekStart,
   weekIndex,
-  fieldworkPaceMonthly,
-  fieldworkPressure,
+  totalWeeks,
+  weeklyHours,
+  dailyHours,
+  assignments,
   examDate,
-  hoursReadyDate,
-  bdsStartDate,
-  todayIso,
 }: {
   weekStart: Date;
   weekIndex: number;
-  fieldworkPaceMonthly: number;
-  fieldworkPressure: "light" | "steady" | "heavy";
+  totalWeeks: number;
+  weeklyHours: 7 | 14;
+  dailyHours: 1 | 2;
+  assignments: AssignedTask[];
   examDate: string;
-  hoursReadyDate: string;
-  bdsStartDate: string;
-  todayIso: string;
 }): StudyWeek {
   const weekStartIso = formatDate(weekStart);
   const weekEndIso = formatDate(addDays(weekStart, 6));
   const examWeekStart = formatDate(startOfWeek(parseDate(examDate)));
-  const baseTarget = getBaseStudyTarget(fieldworkPaceMonthly, hoursReadyDate, bdsStartDate, examDate);
-  const warmupTarget = getWarmupStudyTarget(fieldworkPressure, hoursReadyDate, bdsStartDate);
-  const hoomHouseRecommendation = pickRecommendation(HOOM_HOUSE_SEQUENCE, weekIndex);
-
-  if (weekStartIso >= examWeekStart) {
-    const recommendation: StudyModuleRecommendation = {
-      provider: "bds",
-      label: "BDS mixed review + Hoom House weak-area refresh",
-      domain: "Mixed review",
-      detail: "Use BDS for a light mixed set and Hoom House only for the concepts that still feel unstable.",
-    };
-    return {
-      weekStart: weekStartIso,
-      weekEnd: weekEndIso,
-      phase: weekStartIso > examDate ? "done" : "exam-week",
-      focus: "Protect sleep, confidence, and final review",
-      targetHours: Math.min(baseTarget, 6),
-      modules: ["bds", "hoom-house"],
-      moduleRecommendation: recommendation,
-      tasks: [
-        `Review ${recommendation.domain}: ${recommendation.detail}`,
-        "Do one light BDS mixed set early in the week.",
-        "Use Hoom House for calm refreshers, not cramming.",
-      ],
-      reminder: "This is a confidence week. The goal is a rested brain, not a heroic sprint.",
-    };
-  }
-
-  if (weekEndIso < hoursReadyDate) {
-    return {
-      weekStart: weekStartIso,
-      weekEnd: weekEndIso,
-      phase: "hours-first",
-      focus: "Keep fieldwork moving and warm up gently",
-      targetHours: warmupTarget,
-      modules: ["hoom-house"],
-      moduleRecommendation: hoomHouseRecommendation,
-      tasks: [
-        `Complete ${hoomHouseRecommendation.label}.`,
-        hoomHouseRecommendation.detail,
-        "Write down three terms that felt fuzzy.",
-      ],
-      reminder: "Small study reps count. Right now the biggest win is steady hours plus a little exam muscle.",
-    };
-  }
-
-  if (weekStartIso < bdsStartDate) {
-    const weeksUntilBds = Math.max(1, Math.ceil(daysBetween(parseDate(weekStartIso), parseDate(bdsStartDate)) / 7));
-    const foundationTarget = weeksUntilBds <= 4 ? Math.max(7, baseTarget - 1) : Math.max(5, baseTarget - 2);
-    const recommendation = pickRecommendation(HOOM_HOUSE_SEQUENCE, weekIndex + 2);
-    return {
-      weekStart: weekStartIso,
-      weekEnd: weekEndIso,
-      phase: "hoom-house",
-      focus: "Build the base before BDS opens",
-      targetHours: foundationTarget,
-      modules: ["hoom-house"],
-      moduleRecommendation: recommendation,
-      tasks: [
-        `Complete ${recommendation.label}.`,
-        recommendation.detail,
-        "Create a short weak-area list for BDS launch.",
-      ],
-      reminder: "This is foundation time. Every clean concept now makes the BDS window less stressful.",
-    };
-  }
-
-  const weeksLeft = Math.max(1, Math.ceil(daysBetween(parseDate(weekStartIso), parseDate(examDate)) / 7));
-  const targetHours = weeksLeft <= 4 ? Math.max(baseTarget + 2, 10) : baseTarget;
-  const bdsWeekIndex = Math.max(0, Math.floor(daysBetween(parseDate(bdsStartDate), parseDate(weekStartIso)) / 7));
-  const recommendation =
-    weeksLeft <= 4
-      ? {
-          provider: "bds" as const,
-          label: "BDS mixed exam rehearsal",
-          domain: "Mixed review",
-          detail: "Use mixed BDS sets, then spend most review time on the domains with repeated misses.",
-        }
-      : pickRecommendation(BDS_SEQUENCE, bdsWeekIndex);
+  const modules = groupTasksByDomain(assignments);
+  const isPastExam = weekStartIso > examDate;
+  const isExamWeek = weekStartIso >= examWeekStart && weekStartIso <= examDate;
+  const isCompressed = totalWeeks < 8 && !isExamWeek && !isPastExam;
+  const isReview = dailyHours === 2 && weekIndex >= Math.ceil(totalWeeks * 0.65) && !isExamWeek && !isPastExam;
 
   return {
     weekStart: weekStartIso,
     weekEnd: weekEndIso,
-    phase: "bds-window",
-    focus: weeksLeft <= 4 ? "Exam rehearsal and weak-area repair" : "BDS practice with Hoom House backup",
-    targetHours,
-    modules: ["bds", "hoom-house"],
-    moduleRecommendation: recommendation,
-    tasks: [
-      `Complete ${recommendation.label}.`,
-      recommendation.detail,
-      "Review every missed question and tag the reason.",
-    ],
-    reminder:
-      todayIso >= bdsStartDate
-        ? "BDS is open now. Practice, review misses, and let the data pick the next topic."
-        : "BDS is almost here. Set up the launch week so the first practice block is easy to start.",
+    phase: isPastExam ? "done" : isExamWeek ? "exam-week" : isReview ? "review" : isCompressed ? "compressed" : "outline",
+    focus: getWeekFocus(modules, isExamWeek, isReview),
+    targetHours: isExamWeek ? Math.min(weeklyHours, dailyHours === 1 ? 5 : 8) : weeklyHours,
+    dailyHours,
+    modules,
+    tasks: buildWeekTasks(modules, isExamWeek, isReview),
+    reminder: buildReminder(totalWeeks, isExamWeek, isReview),
   };
 }
 
-function pickRecommendation<T>(sequence: T[], index: number): T {
-  return sequence[index % sequence.length];
+function groupTasksByDomain(tasks: AssignedTask[]): StudyModuleRecommendation[] {
+  const domainMap = new Map<string, StudyModuleRecommendation>();
+
+  for (const task of tasks) {
+    const existing = domainMap.get(task.domain.id);
+    if (existing) {
+      existing.tasks.push({ id: task.id, text: task.text });
+      continue;
+    }
+
+    domainMap.set(task.domain.id, {
+      domainId: task.domain.id,
+      domainTitle: task.domain.title,
+      questionCount: task.domain.questionCount,
+      examPercent: task.domain.examPercent,
+      tasks: [{ id: task.id, text: task.text }],
+    });
+  }
+
+  return [...domainMap.values()].sort((left, right) => {
+    const weightDelta = right.questionCount - left.questionCount;
+    return weightDelta || left.domainId.localeCompare(right.domainId);
+  });
+}
+
+function getWeekFocus(modules: StudyModuleRecommendation[], isExamWeek: boolean, isReview: boolean): string {
+  if (isExamWeek) return "Final review and rest";
+  if (isReview) return "Second pass and mixed review";
+  if (modules.length === 0) return "Mixed review";
+
+  const [primary, secondary] = modules;
+  return secondary
+    ? `${primary.domainId}. ${primary.domainTitle} + ${secondary.domainId}. ${secondary.domainTitle}`
+    : `${primary.domainId}. ${primary.domainTitle}`;
+}
+
+function buildWeekTasks(
+  modules: StudyModuleRecommendation[],
+  isExamWeek: boolean,
+  isReview: boolean,
+): string[] {
+  if (isExamWeek) {
+    return [
+      "Review completed task notes and avoid adding brand-new content late in the week.",
+      "Do light mixed practice early in the week, then focus on sleep and confidence.",
+    ];
+  }
+
+  if (modules.length === 0) {
+    return ["Use this week for mixed review across completed BACB domains."];
+  }
+
+  const moduleSummary = modules
+    .map((module) => `${module.domainId}: ${module.tasks.length} task${module.tasks.length === 1 ? "" : "s"}`)
+    .join(", ");
+
+  return [
+    `${isReview ? "Revisit" : "Study"} ${moduleSummary}.`,
+    "Expand each domain below and mark individual BACB tasks complete as you finish them.",
+  ];
+}
+
+function buildReminder(totalWeeks: number, isExamWeek: boolean, isReview: boolean): string {
+  if (isExamWeek) return "This is a confidence week. Keep review light and protect rest.";
+  if (isReview) return "The 2 hour/day track finishes the first pass earlier so extra time can go to retrieval practice and missed items.";
+  if (totalWeeks < 8) return "This timeline is compressed, so the full 6th edition outline is packed into the weeks available.";
+  return "The plan follows the BCBA 6th edition outline and gives heavier exam domains more repeated attention.";
 }
 
 function getFieldworkPressure(requiredMonthlyPace: number): "light" | "steady" | "heavy" {
@@ -336,47 +302,14 @@ function getFieldworkPressure(requiredMonthlyPace: number): "light" | "steady" |
   return "light";
 }
 
-function getWarmupStudyTarget(
-  fieldworkPressure: "light" | "steady" | "heavy",
-  hoursReadyDate: string,
-  bdsStartDate: string,
-): number {
-  const weeksBetweenHoursAndBds = Math.max(0, Math.ceil(daysBetween(parseDate(hoursReadyDate), parseDate(bdsStartDate)) / 7));
-
-  if (fieldworkPressure === "heavy") return weeksBetweenHoursAndBds < 4 ? 2 : 3;
-  if (fieldworkPressure === "steady") return weeksBetweenHoursAndBds < 4 ? 3 : 4;
-  return weeksBetweenHoursAndBds < 4 ? 4 : 5;
-}
-
-function getBaseStudyTarget(
-  fieldworkPaceMonthly: number,
-  hoursReadyDate: string,
-  bdsStartDate: string,
-  examDate: string,
-): number {
-  const bdsWeeks = Math.max(1, Math.ceil(daysBetween(parseDate(bdsStartDate), parseDate(examDate)) / 7));
-  const runwayWeeks = Math.max(0, Math.ceil(daysBetween(parseDate(hoursReadyDate), parseDate(bdsStartDate)) / 7));
-  const pressure = getFieldworkPressure(fieldworkPaceMonthly);
-
-  let target = bdsWeeks < 10 ? 11 : bdsWeeks < 13 ? 10 : 8;
-  if (runwayWeeks < 3) target += 1;
-  if (pressure === "heavy") target += 1;
-  if (pressure === "light" && runwayWeeks >= 8) target -= 1;
-
-  return Math.min(12, Math.max(7, target));
-}
-
 function buildStudyHoursBasis(
   fieldworkPaceMonthly: number,
-  hoursReadyDate: string,
+  totalWeeks: number,
   bdsStartDate: string,
   examDate: string,
 ): string {
-  const bdsWeeks = Math.max(1, Math.ceil(daysBetween(parseDate(bdsStartDate), parseDate(examDate)) / 7));
-  const runwayWeeks = Math.max(0, Math.ceil(daysBetween(parseDate(hoursReadyDate), parseDate(bdsStartDate)) / 7));
-  const pressure = getFieldworkPressure(fieldworkPaceMonthly);
-
-  return `Based on ${Math.round(fieldworkPaceMonthly)} fieldwork hrs/month needed, ${runwayWeeks} week${runwayWeeks === 1 ? "" : "s"} between 2,000 hours and BDS access, and a ${bdsWeeks}-week BDS window. Fieldwork pressure is ${pressure}.`;
+  const compression = totalWeeks < 8 ? " The timeline is compressed, so all outline tasks are distributed across the available weeks." : "";
+  return `Based on ${Math.round(fieldworkPaceMonthly)} fieldwork hrs/month needed, ${totalWeeks} week${totalWeeks === 1 ? "" : "s"} until exam day, and the official BACB 6th edition outline. BDS access is still shown from ${bdsStartDate} to ${examDate}.${compression}`;
 }
 
 function parseDate(iso: string): Date {
